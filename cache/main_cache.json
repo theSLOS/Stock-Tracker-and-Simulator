@@ -1,0 +1,26 @@
+{
+    "AAPL": {
+        "name": "Apple Inc.",
+        "symbol": "AAPL",
+        "dfpath": "csvFiles/AAPL.csv",
+        "lastUpdate": "2025-12-03T10:00:00"
+    },
+    "NVDA": {
+        "name": "NVIDIA Corporation",
+        "symbol": "NVDA",
+        "dfpath": "csvFiles/NVDA.csv",
+        "lastUpdate": "2025-12-03T10:22:36.446172"
+    },
+    "TLSA": {
+        "name": "Tesla, Inc.",
+        "symbol": "TLSA",
+        "dfpath": "csvFiles/TLSA.csv",
+        "lastUpdate": "2025-12-03T10:00:00"
+    },
+    "GOOG": {
+        "name": "Google",
+        "symbol": "GOOG",
+        "dfpath": "csvFiles/GOOG.csv",
+        "lastUpdate": "2025-12-03T11:09:32.443946"
+    }
+}
