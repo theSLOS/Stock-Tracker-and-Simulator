@@ -1,26 +1,32 @@
 {
-    "AAPL": {
-        "name": "Apple Inc.",
-        "symbol": "AAPL",
-        "dfpath": "csvFiles/AAPL.csv",
-        "lastUpdate": "2025-12-04T14:15:59.783231"
-    },
     "NVDA": {
         "name": "NVIDIA Corporation",
         "symbol": "NVDA",
         "dfpath": "csvFiles/NVDA.csv",
-        "lastUpdate": "2025-12-03T10:22:36.446172"
+        "lastUpdate": "2026-04-29T11:06:35.665114"
     },
     "TLSA": {
         "name": "Tesla, Inc.",
         "symbol": "TLSA",
         "dfpath": "csvFiles/TLSA.csv",
-        "lastUpdate": "2025-12-03T10:00:00"
+        "lastUpdate": "2025-12-04T18:08:10.032872"
     },
     "GOOG": {
         "name": "Google",
         "symbol": "GOOG",
         "dfpath": "csvFiles/GOOG.csv",
-        "lastUpdate": "2025-12-03T11:09:32.443946"
+        "lastUpdate": "2025-12-04T18:20:29.851615"
+    },
+    "AMZN": {
+        "name": "Amazon",
+        "symbol": "AMZN",
+        "dfpath": "csvFiles/AMZN.csv",
+        "lastUpdate": "2025-12-04T18:20:55.197435"
+    },
+    "AAPL": {
+        "name": "Apple",
+        "symbol": "AAPL",
+        "dfpath": "csvFiles/AAPL.csv",
+        "lastUpdate": "2026-04-29T11:06:45.299466"
     }
 }

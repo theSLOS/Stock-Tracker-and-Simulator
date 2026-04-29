@@ -2,7 +2,7 @@ import pandas as pd
 from dotenv import load_dotenv
 import os
 import datetime as dt
-import pandas_datareader.data as web
+import yfinance as yf
 import IndivStock
 
 
@@ -30,7 +30,8 @@ def get_stock_data(stock_symbol, path):
     print(f"Fetching data for {stock_symbol} from online source...\n")
     start = dt.datetime(2020, 1, 1)
     end = dt.datetime.now()
-    df = web.DataReader(stock_symbol, 'stooq', start, end)
+    df = yf.download(stock_symbol, start=start, end=end, auto_adjust=True)
+    df.columns = df.columns.droplevel(1) if isinstance(df.columns, pd.MultiIndex) else df.columns
     df.sort_index(inplace=True)
     if not df.empty:
         df.to_csv(f"{path}/{stock_symbol}.csv")

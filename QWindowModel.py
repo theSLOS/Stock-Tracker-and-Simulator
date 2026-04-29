@@ -5,6 +5,7 @@ import pandasModel
 import caching
 import stock_handler
 import numpy as np
+from datetime import datetime as dt
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
@@ -61,10 +62,14 @@ class MainWindow(QMainWindow):
         self.hover_marker = pg.ScatterPlotItem(size=8, brush=pg.mkBrush(255, 0, 0), pen=pg.mkPen(None))
         self.plot_widget.addItem(self.hover_marker)
 
+        self.xylabel = pg.TextItem(color=(255, 255, 255), anchor=(0,1))
+        self.plot_widget.addItem(self.xylabel)
+
         self.plot_widget.scene().sigMouseMoved.connect(self.on_mouse_moved)
         
         
         # --- top row: stock dropdown + delete button
+        self.date_range = None
         combo_row = QHBoxLayout()
         
         self.stock_combo = QComboBox()
@@ -80,6 +85,7 @@ class MainWindow(QMainWindow):
         font.setPointSize(9)
         self.delete_button.setFont(font)
 
+        
         if self.stock_combo.count() == 0:
             self.delete_button.setEnabled(False)
 
@@ -99,15 +105,44 @@ class MainWindow(QMainWindow):
         right_layout.addWidget(title_label)
         right_layout.addWidget(self.plot_widget)
 
+        #date range selectors, indicators, etc. can be added here later
+        self.date_range_row = QHBoxLayout()
+        
+
+        datebutton_1year = {"value": 365, "button": QPushButton("1 Year")}
+        datebutton_6months = {"value": 182, "button": QPushButton("6 Months")}
+        datebutton_3months = {"value": 91, "button": QPushButton("3 Months")}
+        datebutton_1month = {"value": 30, "button": QPushButton("1 Month")} 
+        datebutton_all = {"value": None, "button": QPushButton("All")}
+        self.date_buttons = [datebutton_1year, datebutton_6months, datebutton_3months, datebutton_1month, datebutton_all]
+
+        for datebutton in self.date_buttons:
+            btn = datebutton["button"]
+            assert isinstance(btn, QPushButton)
+            btn.setFixedWidth(100)
+            btn.clicked.connect(lambda checked, v=datebutton["value"]: self.on_date_range_selected(v))
+            self.date_range_row.addWidget(btn)
+
+        right_layout.addLayout(self.date_range_row) 
+
+
         # --- add both sides to main layout
         main_layout.addWidget(self.table, stretch=1)
         main_layout.addWidget(right_panel, stretch=2)
 
 
-        # e.g., later you might make selection filter date range, etc.
 
+        # e.g., later you might make selection filter date range, etc.
+    def on_date_range_selected(self, days: int | None):
+        self.date_range = days
+        self.plot_price()
+    
+    
     def plot_price(self):
         df = self.df.copy()
+        if self.date_range is not None:
+            cutoff_date = pd.Timestamp.now() - pd.Timedelta(days=self.date_range)
+            df = df[df.index >= cutoff_date]
 
         if "Date" in df.columns:
             if not pd.api.types.is_datetime64_any_dtype(df["Date"]):
@@ -292,6 +327,10 @@ class MainWindow(QMainWindow):
         self.vline.setPos(x_closet)
 
         self.hover_marker.setData([x_closet], [y_closet])
+        date_str = dt.fromtimestamp(x_closet).strftime("%Y-%m-%d")
+
+        self.xylabel.setText(f"Date: {date_str}\nPrice: ${y_closet:.2f}")
+        self.xylabel.setPos(x_closet, y_closet)
 
 
 def apply_dark_theme(app):
