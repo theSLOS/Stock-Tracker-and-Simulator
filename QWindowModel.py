@@ -51,8 +51,9 @@ class StockFetchWorker(QThread):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, cache: caching.CacheManager, csv_path):
+    def __init__(self, cache: caching.CacheManager, csv_path, username):
         super().__init__()
+        self.username = username
         self.cache = cache
         self.df = pd.DataFrame()
         self.plot_df = self.df.copy()
@@ -61,9 +62,8 @@ class MainWindow(QMainWindow):
         self._worker_symbol = None
         self._worker_mode = None
 
+        self.setWindowTitle(f"Stock Viewer - User: {self.username}")
         self.indicator_curves = {}
-
-        self.setWindowTitle("Stock Viewer")
         self.resize(1400, 800)
 
         # --- central widget + main layout
@@ -148,6 +148,22 @@ class MainWindow(QMainWindow):
         
         
         
+        self.date_range_row = QHBoxLayout()
+
+        datebutton_1year = {"value": 365, "button": QPushButton("1 Year")}
+        datebutton_6months = {"value": 182, "button": QPushButton("6 Months")}
+        datebutton_3months = {"value": 91, "button": QPushButton("3 Months")}
+        datebutton_1month = {"value": 30, "button": QPushButton("1 Month")}
+        datebutton_all = {"value": None, "button": QPushButton("All")}
+        self.date_buttons = [datebutton_1year, datebutton_6months, datebutton_3months, datebutton_1month, datebutton_all]
+
+        for datebutton in self.date_buttons:
+            btn = datebutton["button"]
+            assert isinstance(btn, QPushButton)
+            btn.setFixedWidth(100)
+            btn.clicked.connect(lambda checked, v=datebutton["value"]: self.on_date_range_selected(v))
+            self.date_range_row.addWidget(btn)
+
         self.populate_stock_combo()
 
         right_layout.addLayout(combo_row)
@@ -160,26 +176,7 @@ class MainWindow(QMainWindow):
 
         right_layout.addWidget(title_label)
         right_layout.addWidget(self.plot_widget)
-
-        #date range selectors, indicators, etc. can be added here later
-        self.date_range_row = QHBoxLayout()
-        
-
-        datebutton_1year = {"value": 365, "button": QPushButton("1 Year")}
-        datebutton_6months = {"value": 182, "button": QPushButton("6 Months")}
-        datebutton_3months = {"value": 91, "button": QPushButton("3 Months")}
-        datebutton_1month = {"value": 30, "button": QPushButton("1 Month")} 
-        datebutton_all = {"value": None, "button": QPushButton("All")}
-        self.date_buttons = [datebutton_1year, datebutton_6months, datebutton_3months, datebutton_1month, datebutton_all]
-
-        for datebutton in self.date_buttons:
-            btn = datebutton["button"]
-            assert isinstance(btn, QPushButton)
-            btn.setFixedWidth(100)
-            btn.clicked.connect(lambda checked, v=datebutton["value"]: self.on_date_range_selected(v))
-            self.date_range_row.addWidget(btn)
-
-        right_layout.addLayout(self.date_range_row) 
+        right_layout.addLayout(self.date_range_row)
         right_layout.addLayout(self.indicator_row)
 
        
@@ -382,7 +379,7 @@ class MainWindow(QMainWindow):
 
         x = mouse_point.x()
 
-        if not hasattr(self, 'df') or self.x_data.size == 0:
+        if not hasattr(self, 'x_data') or self.x_data.size == 0:
             return
         
         #find index of closest x value 

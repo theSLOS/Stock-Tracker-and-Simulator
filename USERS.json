@@ -1,0 +1,18 @@
+{
+    "user1": {
+        "username": "user1",
+        "password": "password",
+        "preferences": {
+            "theme": "dark",
+            "default_stock": "AAPL"
+        }
+    },
+    "admin": {
+        "username": "admin",
+        "password": "password",
+        "preferences": {
+            "theme": "dark",
+            "default_stock": "GOOGL"
+        }
+    }
+}
