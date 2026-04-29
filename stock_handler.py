@@ -55,3 +55,9 @@ def check_local(stock_symbol, path):
         return df
     except FileNotFoundError:
         return pd.DataFrame()
+    
+def calculate_SMA(df, window):
+    return df['Close'].rolling(window=window).mean()
+    
+def calculate_EMA(df, window):
+    return df['Close'].ewm(span=window, adjust=False).mean()

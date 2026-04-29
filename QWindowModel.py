@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout, QVBoxLayout, QTableView, QLabel, QComboBox,QMessageBox, 
     QFileDialog, QInputDialog, QPushButton
 )
-from PyQt6.QtCore import (Qt, QSize)
+from PyQt6.QtCore import (Qt, QSize, QThread, pyqtSignal)
 from PyQt6.QtGui import QIcon
 import pyqtgraph as pg
 
@@ -23,12 +23,45 @@ from PyQt6.QtCore import QAbstractTableModel, QVariant
 
 ADD_NEW_SENTINEL = "__add_new_stock__"
 
+
+class StockFetchWorker(QThread):
+    finished = pyqtSignal(object)
+    error = pyqtSignal(str)
+
+    def __init__(self, mode, symbol, path, name=""):
+        super().__init__()
+        self.mode = mode  # "refresh" or "add"
+        self.symbol = symbol
+        self.path = path
+        self.name = name
+
+    def run(self):
+        try:
+            if self.mode == "add":
+                result = stock_handler.add_new_stock(self.symbol, self.path, name=self.name)
+                if result is None:
+                    self.error.emit(f"Failed to retrieve data for '{self.symbol}'.")
+                else:
+                    self.finished.emit(result)
+            else:
+                stock_handler.get_stock_data(self.symbol, self.path)
+                self.finished.emit(None)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
 class MainWindow(QMainWindow):
     def __init__(self, cache: caching.CacheManager, csv_path):
         super().__init__()
         self.cache = cache
         self.df = pd.DataFrame()
+        self.plot_df = self.df.copy()
         self.csv_path = csv_path
+        self._worker = None
+        self._worker_symbol = None
+        self._worker_mode = None
+
+        self.indicator_curves = {}
 
         self.setWindowTitle("Stock Viewer")
         self.resize(1400, 800)
@@ -66,6 +99,10 @@ class MainWindow(QMainWindow):
         self.plot_widget.addItem(self.xylabel)
 
         self.plot_widget.scene().sigMouseMoved.connect(self.on_mouse_moved)
+
+        self.curve = self.plot_widget.plot([], [], pen=pg.mkPen(width=2))
+        self.legend = self.plot_widget.addLegend()
+        self.legend.addItem(self.curve, "Price")
         
         
         # --- top row: stock dropdown + delete button
@@ -92,6 +129,25 @@ class MainWindow(QMainWindow):
         combo_row.addWidget(self.stock_combo)
         combo_row.addWidget(self.delete_button)
 
+        #SMA and EMA buttons
+        self.indicator_row = QHBoxLayout()
+
+        self.indicator_buttons = {
+            "SMA 20": {"name": "SMA 20", "button": QPushButton("SMA 20"), "func": lambda df: stock_handler.calculate_SMA(df, 20), "colour": (0, 255, 0)},
+            "SMA 50": {"name": "SMA 50", "button": QPushButton("SMA 50"), "func": lambda df: stock_handler.calculate_SMA(df, 50), "colour": (0, 0, 255)},
+            "EMA 20": {"name": "EMA 20", "button": QPushButton("EMA 20"), "func": lambda df: stock_handler.calculate_EMA(df, 20), "colour": (255, 0, 255)},
+        }
+
+        for btn in self.indicator_buttons.values():
+            btn["button"].setCheckable(True)
+            btn["button"].setFixedWidth(100)
+            btn["button"].clicked.connect(self.on_indicator_toggled)
+            self.indicator_row.addWidget(btn["button"])
+
+        
+        
+        
+        
         self.populate_stock_combo()
 
         right_layout.addLayout(combo_row)
@@ -124,6 +180,10 @@ class MainWindow(QMainWindow):
             self.date_range_row.addWidget(btn)
 
         right_layout.addLayout(self.date_range_row) 
+        right_layout.addLayout(self.indicator_row)
+
+       
+
 
 
         # --- add both sides to main layout
@@ -143,6 +203,7 @@ class MainWindow(QMainWindow):
         if self.date_range is not None:
             cutoff_date = pd.Timestamp.now() - pd.Timedelta(days=self.date_range)
             df = df[df.index >= cutoff_date]
+        self.plot_df = df
 
         if "Date" in df.columns:
             if not pd.api.types.is_datetime64_any_dtype(df["Date"]):
@@ -164,15 +225,12 @@ class MainWindow(QMainWindow):
         axis = pg.graphicsItems.DateAxisItem.DateAxisItem(orientation="bottom")
         self.plot_widget.setAxisItems({"bottom": axis})
 
-        # If curve exists, update it
-        if hasattr(self, "curve"):
-            self.curve.setData(self.x_data, self.y_data)
-        else:
-            # First-time creation
-            self.curve = self.plot_widget.plot(self.x_data, self.y_data, pen=pg.mkPen(width=2))
+        self.curve.setData(self.x_data, self.y_data)
 
+        
         self.plot_widget.setLabel("bottom", "Date (YYYY-MM-DD)")
         self.plot_widget.setLabel("left", "Price $(USD)")
+        self.redraw_indicators()
 
     def populate_stock_combo(self, select_symbol: str | None = None):
         """Fill the dropdown with stocks from the cache."""
@@ -243,14 +301,15 @@ class MainWindow(QMainWindow):
         
         if not os.path.exists(self.csv_path):
             os.makedirs(self.csv_path)
-        
-        stock_package = stock_handler.add_new_stock(symbol, self.csv_path, name=name)
-        if stock_package is None:
-            QMessageBox.warning(self, "Error", f"Failed to retrieve data for stock '{symbol}'.")
-            return
-        
-        self.cache.set_stock_data(stock_package)
-        self.populate_stock_combo(select_symbol=symbol)
+
+        self._worker_symbol = symbol
+        self._worker_mode = "add"
+        self._worker = StockFetchWorker("add", symbol, self.csv_path, name=name)
+        self._worker.finished.connect(self._on_worker_finished)
+        self._worker.error.connect(self._on_worker_error)
+        self._set_controls_enabled(False)
+        self.statusBar().showMessage(f"Fetching data for {symbol}...")
+        self._worker.start()
 
     def on_delete_stock(self):
         """delete stock currently selected in dropdown"""
@@ -294,10 +353,17 @@ class MainWindow(QMainWindow):
         if dfpath is None:
             print(f"No dfpath for {symbol} in cache")
             return
-        if(not self.cache.is_stock_fresh(symbol)):
-            stock_handler.get_stock_data(symbol, stock_handler.path)
-            self.cache.update_stock_timestamp(symbol)
-            self.cache.save_cache()
+
+        if not self.cache.is_stock_fresh(symbol):
+            self._worker_symbol = symbol
+            self._worker_mode = "refresh"
+            self._worker = StockFetchWorker("refresh", symbol, stock_handler.path)
+            self._worker.finished.connect(self._on_worker_finished)
+            self._worker.error.connect(self._on_worker_error)
+            self._set_controls_enabled(False)
+            self.statusBar().showMessage(f"Refreshing {symbol}...")
+            self._worker.start()
+            return
 
         df = pd.read_csv(dfpath, parse_dates=True, index_col=0)
         self.df = df
@@ -331,6 +397,71 @@ class MainWindow(QMainWindow):
 
         self.xylabel.setText(f"Date: {date_str}\nPrice: ${y_closet:.2f}")
         self.xylabel.setPos(x_closet, y_closet)
+
+
+    def _set_controls_enabled(self, enabled):
+        self.stock_combo.setEnabled(enabled)
+        for db in self.date_buttons:
+            db["button"].setEnabled(enabled)
+        if enabled:
+            data = self.stock_combo.currentData()
+            self.delete_button.setEnabled(data not in (None, ADD_NEW_SENTINEL))
+        else:
+            self.delete_button.setEnabled(False)
+
+    def _on_worker_finished(self, result):
+        self._set_controls_enabled(True)
+        self.statusBar().clearMessage()
+
+        if self._worker_mode == "refresh":
+            self.cache.update_stock_timestamp(self._worker_symbol)
+            self.cache.save_cache()
+            info = self.cache.get_stock_data(self._worker_symbol)
+            df = pd.read_csv(info["dfpath"], parse_dates=True, index_col=0)
+            self.df = df
+            self.model = pandasModel.PandasModel(self.df)
+            self.table.setModel(self.model)
+            self.plot_price()
+        elif self._worker_mode == "add":
+            self.cache.set_stock_data(result)
+            self.populate_stock_combo(select_symbol=self._worker_symbol)
+
+        self._worker = None
+
+    def _on_worker_error(self, message):
+        self._set_controls_enabled(True)
+        self.statusBar().clearMessage()
+        QMessageBox.warning(self, "Fetch Error", message)
+        if self._worker_mode == "add":
+            self.populate_stock_combo()
+        self._worker = None
+
+    def on_indicator_toggled(self):
+        btn = self.sender()
+        for key, data in self.indicator_buttons.items():
+            if data["button"] == btn:
+                if btn.isChecked():
+                    curve = self.plot_widget.plot(pen=pg.mkPen(data["colour"], width=1.5, style=Qt.PenStyle.DashLine))
+                    self.indicator_curves[key] = curve
+                    indicator_values = data["func"](self.plot_df)
+                    curve.setData(self.x_data, indicator_values)
+                    self.legend.addItem(curve, data["name"])
+                else:
+                    if key in self.indicator_curves:
+                        self.plot_widget.removeItem(self.indicator_curves[key])
+                        del self.indicator_curves[key]
+                        self.legend.removeItem(data["name"])
+                break
+    
+    def redraw_indicators(self):
+        for key, data in self.indicator_buttons.items():
+            if data["button"].isChecked():
+                if key in self.indicator_curves:
+                    indicator_values = data["func"](self.plot_df)
+                    self.indicator_curves[key].setData(self.x_data, indicator_values)
+                
+                
+            
 
 
 def apply_dark_theme(app):

@@ -9,24 +9,24 @@
         "name": "Tesla, Inc.",
         "symbol": "TLSA",
         "dfpath": "csvFiles/TLSA.csv",
-        "lastUpdate": "2025-12-04T18:08:10.032872"
+        "lastUpdate": "2026-04-29T13:06:07.286147"
     },
     "GOOG": {
         "name": "Google",
         "symbol": "GOOG",
         "dfpath": "csvFiles/GOOG.csv",
-        "lastUpdate": "2025-12-04T18:20:29.851615"
+        "lastUpdate": "2026-04-29T13:05:57.868127"
     },
     "AMZN": {
         "name": "Amazon",
         "symbol": "AMZN",
         "dfpath": "csvFiles/AMZN.csv",
-        "lastUpdate": "2025-12-04T18:20:55.197435"
+        "lastUpdate": "2026-04-29T11:12:56.591655"
     },
     "AAPL": {
         "name": "Apple",
         "symbol": "AAPL",
         "dfpath": "csvFiles/AAPL.csv",
-        "lastUpdate": "2026-04-29T11:06:45.299466"
+        "lastUpdate": "2026-04-29T11:35:51.973965"
     }
 }
