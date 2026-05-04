@@ -1,0 +1,8 @@
+{
+    "username": "admin",
+    "password": "password",
+    "preferences": {
+         "theme": "dark",
+        "default_stock": "GOOGL"
+    }
+}

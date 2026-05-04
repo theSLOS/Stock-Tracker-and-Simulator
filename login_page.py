@@ -1,19 +1,27 @@
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLineEdit, QLabel, QDialogButtonBox, QMessageBox
+from PyQt6.QtWidgets import QDialog, QPushButton, QVBoxLayout, QLineEdit, QLabel, QDialogButtonBox, QMessageBox
 
 import os
 import json
 
 def load_users():
-    path = os.path.join(os.path.dirname(__file__), 'users.json')
-    if  not os.path.exists(path):
+    user_dir = os.path.join(os.path.dirname(__file__), 'Users')
+    if not os.path.exists(user_dir):
         return {}
-    with open(path) as f:
-        return json.load(f)
+    users={}
+
+    for name in os.listdir(user_dir):
+        profile_path = os.path.join(user_dir, name, 'profile.json')
+        if os.path.exists(profile_path):
+            with open(profile_path) as f:
+                users[name] =json.load(f)
+    return users
 
 class LoginDialog(QDialog):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Login")
+        NewUserBtn = QPushButton("New User")
+        NewUserBtn.clicked.connect(self.create_new_user)
         self.username_input = QLineEdit()
         self.password_input = QLineEdit()
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
@@ -26,6 +34,7 @@ class LoginDialog(QDialog):
         layout.addWidget(self.username_input)
         layout.addWidget(QLabel("Password: "))
         layout.addWidget(self.password_input)
+        layout.addWidget(NewUserBtn)
         layout.addWidget(buttons)
         self.setLayout(layout)
 
@@ -38,3 +47,7 @@ class LoginDialog(QDialog):
             QMessageBox.warning(self, "Login Failed", "Invalid username or password.")
             self.username_input.clear()
             self.password_input.clear()
+
+    def create_new_user(self):
+        # Implementation for creating a new user
+        pass
