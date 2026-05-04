@@ -1,20 +1,8 @@
 from PyQt6.QtWidgets import QDialog, QPushButton, QVBoxLayout, QLineEdit, QLabel, QDialogButtonBox, QMessageBox
 
-import os
-import json
 
-def load_users():
-    user_dir = os.path.join(os.path.dirname(__file__), 'Users')
-    if not os.path.exists(user_dir):
-        return {}
-    users={}
-
-    for name in os.listdir(user_dir):
-        profile_path = os.path.join(user_dir, name, 'profile.json')
-        if os.path.exists(profile_path):
-            with open(profile_path) as f:
-                users[name] =json.load(f)
-    return users
+import user_manager
+import register_page
 
 class LoginDialog(QDialog):
     def __init__(self):
@@ -39,7 +27,7 @@ class LoginDialog(QDialog):
         self.setLayout(layout)
 
     def try_login(self):
-        users = load_users()
+        users = user_manager.load_users()
         user = users.get(self.username_input.text())
         if user and user["password"] == self.password_input.text():
             self.accept()
@@ -49,5 +37,4 @@ class LoginDialog(QDialog):
             self.password_input.clear()
 
     def create_new_user(self):
-        # Implementation for creating a new user
-        pass
+        register_page.RegisterDialog().exec()

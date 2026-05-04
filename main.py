@@ -5,6 +5,8 @@ import QWindowModel
 import login_page
 from PyQt6.QtWidgets import QApplication, QDialog
 
+import user_manager
+
 
 def main():
     app = QApplication(sys.argv)
@@ -17,6 +19,7 @@ def main():
         sys.exit(0)
 
     username = dialog.username_input.text()
+    user_profile = user_manager.get_user_profile(username)
     print(f"Login successful for user: {username}")
 
     user_dir = os.path.join(os.path.dirname(__file__), 'Users')
@@ -26,7 +29,7 @@ def main():
     os.makedirs(user_csv_path, exist_ok=True)
 
     cache = caching.CacheManager(user_cache_path)
-    window = QWindowModel.MainWindow(cache, user_csv_path, username)
+    window = QWindowModel.MainWindow(cache, user_csv_path, user_profile)
     window.show()
 
     sys.exit(app.exec())

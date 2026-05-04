@@ -9,8 +9,8 @@ from datetime import datetime as dt
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
-    QHBoxLayout, QVBoxLayout, QTableView, QLabel, QComboBox,QMessageBox, 
-    QFileDialog, QInputDialog, QPushButton
+    QHBoxLayout, QVBoxLayout, QTableView, QLabel, QComboBox, QMessageBox,
+    QFileDialog, QInputDialog, QPushButton, QStackedWidget
 )
 from PyQt6.QtCore import (Qt, QSize, QThread, pyqtSignal)
 from PyQt6.QtGui import QIcon
@@ -21,7 +21,7 @@ from PyQt6.QtGui import QPalette, QColor
 
 from PyQt6.QtCore import QAbstractTableModel, QVariant
 
-ADD_NEW_SENTINEL = "__add_new_stock__"
+
 
 
 class StockFetchWorker(QThread):
@@ -51,13 +51,15 @@ class StockFetchWorker(QThread):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, cache: caching.CacheManager, csv_path, username):
+    def __init__(self, cache: caching.CacheManager, csv_path, user_profile):
         super().__init__()
-        self.username = username
+        self.user_profile = user_profile
+        self.username = user_profile["username"]
         self.cache = cache
         self.df = pd.DataFrame()
         self.plot_df = self.df.copy()
         self.csv_path = csv_path
+        
         self._worker = None
         self._worker_symbol = None
         self._worker_mode = None
@@ -89,6 +91,15 @@ class MainWindow(QMainWindow):
         self.plot_widget = pg.PlotWidget()
         self.plot_widget.showGrid(x=True, y=True)
 
+        self.empty_label = QLabel("No stocks — click '+ Add Stock' to get started")
+        self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_label.setStyleSheet("color: #888888; font-size: 16px;")
+
+        self.chart_stack = QStackedWidget()
+        self.chart_stack.addWidget(self.empty_label)
+        self.chart_stack.addWidget(self.plot_widget)
+        self.chart_stack.setCurrentWidget(self.empty_label)
+
         self.vline = pg.InfiniteLine(angle=90, movable=False)
         self.plot_widget.addItem(self.vline, ignoreBounds=True)
 
@@ -117,6 +128,11 @@ class MainWindow(QMainWindow):
         self.delete_button.clicked.connect(self.on_delete_stock)
 
         self.delete_button.setFixedWidth(80)
+
+        self.add_button = QPushButton("+ Add Stock")
+        self.add_button.clicked.connect(self.add_new_stock_dialog)
+        self.add_button.setFixedWidth(self.add_button.fontMetrics().horizontalAdvance("+ Add Stock") + 24)
+        combo_row.addWidget(self.add_button)
 
         font = self.delete_button.font()
         font.setPointSize(9)
@@ -165,7 +181,17 @@ class MainWindow(QMainWindow):
             self.date_range_row.addWidget(btn)
 
         self.populate_stock_combo()
-
+        if len(self.cache.list_stocks()) == 0:
+            default = self.user_profile["preferences"].get("default_stock", "")
+            if default:
+                QMessageBox.information(self, "Welcome", f"No stocks Found. Loading default stock: {default}")
+                self._worker_mode = "add"
+                self._worker_symbol = default
+                self._worker = StockFetchWorker("add", default, self.csv_path, name=default)
+                self._worker.finished.connect(self._on_worker_finished)
+                self._worker.error.connect(self._on_worker_error)
+                self._worker.start()
+        
         right_layout.addLayout(combo_row)
 
         title_label = QLabel("Price Chart")
@@ -175,7 +201,7 @@ class MainWindow(QMainWindow):
             self.load_stock(self.stock_combo.itemData(0))
 
         right_layout.addWidget(title_label)
-        right_layout.addWidget(self.plot_widget)
+        right_layout.addWidget(self.chart_stack)
         right_layout.addLayout(self.date_range_row)
         right_layout.addLayout(self.indicator_row)
 
@@ -196,6 +222,7 @@ class MainWindow(QMainWindow):
     
     
     def plot_price(self):
+        self.chart_stack.setCurrentWidget(self.plot_widget)
         df = self.df.copy()
         if self.date_range is not None:
             cutoff_date = pd.Timestamp.now() - pd.Timedelta(days=self.date_range)
@@ -242,8 +269,6 @@ class MainWindow(QMainWindow):
             label = f"{symbol} - {name}"
             self.stock_combo.addItem(label, userData=symbol)
 
-        # Add the special 'Add new stock...' item at the bottom
-        self.stock_combo.addItem("Add new stock...", userData=ADD_NEW_SENTINEL)
 
         # Optionally auto-select a given symbol (e.g. after adding)
         if select_symbol is not None:
@@ -265,14 +290,8 @@ class MainWindow(QMainWindow):
         
         data = self.stock_combo.itemData(index)
 
-        # Enable delete only for real stocks
-        is_real_stock = data not in (None, ADD_NEW_SENTINEL)
-        self.delete_button.setEnabled(is_real_stock)
 
-        if data == ADD_NEW_SENTINEL:
-                # Handle adding a new stock
-                self.add_new_stock_dialog()
-                return
+        self.delete_button.setEnabled(data is not None)
         
         if data is None:
             return
@@ -315,8 +334,8 @@ class MainWindow(QMainWindow):
             return  
         
         data = self.stock_combo.itemData(index)
-        if data == ADD_NEW_SENTINEL:
-            return      
+        if data is None:
+            return
         
         symbol = data
         confirm = QMessageBox.question(
@@ -330,13 +349,19 @@ class MainWindow(QMainWindow):
         
         self.populate_stock_combo()
 
-        real_symbols = [self.stock_combo.itemData(i) for i in range(self.stock_combo.count()) 
-                        if self.stock_combo.itemData(i) != ADD_NEW_SENTINEL]
+        real_symbols = [self.stock_combo.itemData(i) for i in range(self.stock_combo.count())
+                        if self.stock_combo.itemData(i) is not None]
         if not real_symbols:
             self.df = pd.DataFrame()
             self.model = pandasModel.PandasModel(self.df)
             self.table.setModel(self.model)
-            self.plot_widget.clear()
+            self.curve.setData([], [])
+            self.x_data = np.array([])
+            self.y_data = np.array([])
+            for key in list(self.indicator_curves.keys()):
+                self.plot_widget.removeItem(self.indicator_curves[key])
+                del self.indicator_curves[key]
+            self.chart_stack.setCurrentWidget(self.empty_label)
             self.delete_button.setEnabled(False)
 
 
@@ -402,7 +427,7 @@ class MainWindow(QMainWindow):
             db["button"].setEnabled(enabled)
         if enabled:
             data = self.stock_combo.currentData()
-            self.delete_button.setEnabled(data not in (None, ADD_NEW_SENTINEL))
+            self.delete_button.setEnabled(data is not None)
         else:
             self.delete_button.setEnabled(False)
 
@@ -421,6 +446,7 @@ class MainWindow(QMainWindow):
             self.plot_price()
         elif self._worker_mode == "add":
             self.cache.set_stock_data(result)
+            self._worker = None
             self.populate_stock_combo(select_symbol=self._worker_symbol)
 
         self._worker = None

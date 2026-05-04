@@ -3,6 +3,6 @@
     "password": "password",
     "preferences": {
          "theme": "dark",
-        "default_stock": "GOOGL"
+         "default_stock": "APPL"
     }
 }

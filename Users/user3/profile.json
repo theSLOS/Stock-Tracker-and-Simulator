@@ -1,0 +1,8 @@
+{
+    "username": "user3",
+    "password": "password",
+    "preferences": {
+        "theme": "dark",
+        "default_stock": "AAPL"
+    }
+}
