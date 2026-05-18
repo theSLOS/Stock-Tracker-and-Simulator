@@ -7,6 +7,7 @@ __pycache__/
 #local files
 *.csv
 cache/
+Users/*/cache
 .env
 
 # C extensions

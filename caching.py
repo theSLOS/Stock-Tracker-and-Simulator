@@ -22,17 +22,18 @@ class CacheManager:
     
     def set_stock_data(self, stock: IndivStock.StockPackage):
         entry = {
-            'name': stock.name, 
+            'name': stock.name,
             'symbol': stock.symbol,
-            'dfpath': stock.dfpath,
+            'dfpath': os.path.basename(stock.dfpath),
             'lastUpdate': stock.lastUpdate.isoformat()
         }
         self.data[stock.symbol] = entry
         self.save_cache()
 
-    def delete_stock(self, symbol: str):
+    def delete_stock(self, symbol: str, csv_path: str):
         if symbol in self.data:
-            os.remove(f"{self.data[symbol]['dfpath']}")
+            filename = self.data[symbol]['dfpath']
+            os.remove(os.path.join(csv_path, filename))
             del self.data[symbol]
             self.save_cache()
 

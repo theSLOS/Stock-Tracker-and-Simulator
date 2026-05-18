@@ -197,9 +197,6 @@ class MainWindow(QMainWindow):
         title_label = QLabel("Price Chart")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        if self.stock_combo.count() > 0:
-            self.load_stock(self.stock_combo.itemData(0))
-
         right_layout.addWidget(title_label)
         right_layout.addWidget(self.chart_stack)
         right_layout.addLayout(self.date_range_row)
@@ -345,7 +342,7 @@ class MainWindow(QMainWindow):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if confirm == QMessageBox.StandardButton.Yes:
-            self.cache.delete_stock(symbol)
+            self.cache.delete_stock(symbol, self.csv_path)
         
         self.populate_stock_combo()
 
@@ -371,15 +368,16 @@ class MainWindow(QMainWindow):
         if info is None:
             print(f"No cache entry for {symbol}")
             return
-        dfpath = info.get("dfpath", None)
-        if dfpath is None:
+        filename = info.get("dfpath", None)
+        if filename is None:
             print(f"No dfpath for {symbol} in cache")
             return
+        dfpath = os.path.join(self.csv_path, filename)
 
-        if not self.cache.is_stock_fresh(symbol):
+        if not os.path.exists(dfpath) or not self.cache.is_stock_fresh(symbol):
             self._worker_symbol = symbol
             self._worker_mode = "refresh"
-            self._worker = StockFetchWorker("refresh", symbol, stock_handler.path)
+            self._worker = StockFetchWorker("refresh", symbol, self.csv_path)
             self._worker.finished.connect(self._on_worker_finished)
             self._worker.error.connect(self._on_worker_error)
             self._set_controls_enabled(False)
@@ -439,7 +437,7 @@ class MainWindow(QMainWindow):
             self.cache.update_stock_timestamp(self._worker_symbol)
             self.cache.save_cache()
             info = self.cache.get_stock_data(self._worker_symbol)
-            df = pd.read_csv(info["dfpath"], parse_dates=True, index_col=0)
+            df = pd.read_csv(os.path.join(self.csv_path, info["dfpath"]), parse_dates=True, index_col=0)
             self.df = df
             self.model = pandasModel.PandasModel(self.df)
             self.table.setModel(self.model)
@@ -466,7 +464,7 @@ class MainWindow(QMainWindow):
                 if btn.isChecked():
                     curve = self.plot_widget.plot(pen=pg.mkPen(data["colour"], width=1.5, style=Qt.PenStyle.DashLine))
                     self.indicator_curves[key] = curve
-                    indicator_values = data["func"](self.plot_df)
+                    indicator_values = np.array(data["func"](self.plot_df))
                     curve.setData(self.x_data, indicator_values)
                     self.legend.addItem(curve, data["name"])
                 else:
@@ -480,7 +478,7 @@ class MainWindow(QMainWindow):
         for key, data in self.indicator_buttons.items():
             if data["button"].isChecked():
                 if key in self.indicator_curves:
-                    indicator_values = data["func"](self.plot_df)
+                    indicator_values = np.array(data["func"](self.plot_df))
                     self.indicator_curves[key].setData(self.x_data, indicator_values)
                 
                 
