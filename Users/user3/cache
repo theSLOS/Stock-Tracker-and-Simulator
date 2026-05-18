@@ -1,8 +1,0 @@
-{
-    "AAPL": {
-        "name": "Apple",
-        "symbol": "AAPL",
-        "dfpath": "c:\\Users\\user\\Documents\\Projects\\Stock-App\\Users\\user3\\csvFiles/AAPL.csv",
-        "lastUpdate": "2026-05-04T18:09:53.261918"
-    }
-}
