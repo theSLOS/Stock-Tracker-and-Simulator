@@ -1,8 +1,8 @@
 from PyQt6.QtWidgets import QDialog, QPushButton, QVBoxLayout, QLineEdit, QLabel, QDialogButtonBox, QMessageBox
 
+from core import user_manager
+from ui.register_page import RegisterDialog
 
-import user_manager
-import register_page
 
 class LoginDialog(QDialog):
     def __init__(self):
@@ -18,7 +18,7 @@ class LoginDialog(QDialog):
         buttons.rejected.connect(self.reject)
 
         layout = QVBoxLayout()
-        layout.addWidget(QLabel("Username: "))   
+        layout.addWidget(QLabel("Username: "))
         layout.addWidget(self.username_input)
         layout.addWidget(QLabel("Password: "))
         layout.addWidget(self.password_input)
@@ -37,4 +37,4 @@ class LoginDialog(QDialog):
             self.password_input.clear()
 
     def create_new_user(self):
-        register_page.RegisterDialog().exec()
+        RegisterDialog().exec()

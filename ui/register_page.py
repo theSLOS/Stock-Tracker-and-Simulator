@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import QDialog, QPushButton, QVBoxLayout, QLineEdit, QLabel, QDialogButtonBox, QMessageBox
 
-import user_manager
+from core import user_manager
+
 
 class RegisterDialog(QDialog):
     def __init__(self):
@@ -37,13 +38,13 @@ class RegisterDialog(QDialog):
         if password != confirm_password:
             QMessageBox.warning(self, "Registration Failed", "Passwords do not match.")
             return
-        
+
         users = user_manager.load_users()
-        
+
         if username in users:
             QMessageBox.warning(self, "Registration Failed", "Username already exists.")
             return
-        
+
         user_manager.create_user(username, password)
         QMessageBox.information(self, "Registration Successful", "User registered successfully.")
         self.accept()
