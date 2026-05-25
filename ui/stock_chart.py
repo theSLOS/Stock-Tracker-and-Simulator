@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime as dt
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QStackedWidget
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QEvent
 from PyQt6.QtGui import QLinearGradient, QColor, QBrush
 
 import pyqtgraph as pg
@@ -55,9 +55,10 @@ class StockChart(QWidget):
         self._dot = pg.ScatterPlotItem(
             size=9, brush=pg.mkBrush('#6495ED'), pen=pg.mkPen('white', width=1.5)
         )
-        self.plot_widget.addItem(self._dot)
+        self.plot_widget.addItem(self._dot, ignoreBounds=True)
 
-        self.plot_widget.scene().sigMouseMoved.connect(self._on_mouse_moved)
+        self.plot_widget.viewport().setMouseTracking(True)
+        self.plot_widget.viewport().installEventFilter(self)
 
         # floating tooltip overlay
         self._tooltip = QLabel(self)
@@ -204,8 +205,17 @@ class StockChart(QWidget):
                 values = np.array(entry['func'](self.plot_df))
                 entry['curve'].setData(self.x_data, values)
 
+    def eventFilter(self, obj, event):
+        if obj is self.plot_widget.viewport() and event.type() == QEvent.Type.MouseMove:
+            scene_pos = self.plot_widget.mapToScene(event.pos())
+            self._on_mouse_moved(scene_pos)
+            return False
+        return super().eventFilter(obj, event)
+
     def _on_mouse_moved(self, pos):
         if not self.plot_widget.sceneBoundingRect().contains(pos):
+            self._vline.hide()
+            self._dot.hide()
             self._tooltip.hide()
             return
         if self.x_data.size == 0:
@@ -213,11 +223,24 @@ class StockChart(QWidget):
 
         vb = self.plot_widget.getPlotItem().vb
         pt = vb.mapSceneToView(pos)
-        idx = int(np.abs(self.x_data - pt.x()).argmin())
+        mx = pt.x()
+
+        if mx < self.x_data[0] or mx > self.x_data[-1]:
+            self._vline.hide()
+            self._dot.hide()
+            self._tooltip.hide()
+            return
+
+        self._vline.show()
+        self._dot.show()
+
+        idx = int(np.abs(self.x_data - mx).argmin())
         x0, y0 = self.x_data[idx], self.y_data[idx]
 
-        self._vline.setPos(x0)
-        self._dot.setData([x0], [y0])
+        y_interp = float(np.interp(mx, self.x_data, self.y_data))
+
+        self._vline.setPos(mx)
+        self._dot.setData([mx], [y_interp])
 
         date_str = dt.fromtimestamp(x0).strftime('%b %d, %Y')
         change = float(y0 - self.y_data[idx - 1]) if idx > 0 else 0.0
