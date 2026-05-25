@@ -27,37 +27,43 @@ class AIAnalysisWorker(QThread):
                 )
                 return
 
-            self.status.emit("Fetching Senate trading data...")
-            senate_summary = self._get_senate_trades()
+            self.status.emit("Fetching insider trading data...")
+            insider_summary = self._get_insider_trades()
 
             self.status.emit("Preparing market data...")
             price_summary = self._get_price_summary()
 
             self.status.emit("Running AI analysis...")
-            result = self._call_claude(api_key, senate_summary, price_summary)
+            result = self._call_claude(api_key, insider_summary, price_summary)
             result["price_summary"] = price_summary
-            result["senate_summary"] = senate_summary
+            result["senate_summary"] = insider_summary
             self.finished.emit(result)
 
         except Exception as e:
             self.error.emit(str(e))
 
-    def _get_senate_trades(self):
+    def _get_insider_trades(self):
         try:
-            url = f"https://senatestockwatcher.com/api/transactions?symbol={self.symbol}"
+            api_key = os.getenv("FINNHUB_API_KEY")
+            if not api_key:
+                return None
+            url = f"https://finnhub.io/api/v1/stock/insider-transactions?symbol={self.symbol}&token={api_key}"
             resp = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
             if resp.status_code != 200:
                 return None
-            data = resp.json()
+            data = resp.json().get("data", [])
             if not data:
                 return None
+            code_map = {"P": "Purchase", "S": "Sale", "A": "Award", "D": "Disposition"}
             lines = []
             for t in data[:15]:
-                senator = t.get("senator") or t.get("name") or "Unknown"
-                trade_type = t.get("type") or t.get("transaction_type") or "Unknown"
-                date = t.get("transaction_date") or t.get("date") or "Unknown date"
-                amount = t.get("amount") or "Unknown amount"
-                lines.append(f"- {senator}: {trade_type} on {date} (amount: {amount})")
+                name = t.get("name", "Unknown")
+                trade_type = code_map.get(t.get("transactionCode", ""), t.get("transactionCode", "Unknown"))
+                date = t.get("transactionDate", "Unknown date")
+                shares = abs(t.get("change", 0))
+                price = t.get("transactionPrice", 0)
+                amount = f"{shares:,.0f} shares" + (f" @ ${price:.2f}" if price else "")
+                lines.append(f"- {name}: {trade_type} on {date} ({amount})")
             return "\n".join(lines) if lines else None
         except Exception:
             return None
@@ -80,14 +86,14 @@ class AIAnalysisWorker(QThread):
             summary += f"\nAvg daily volume (30d): {float(recent['Volume'].mean()):,.0f}"
         return summary
 
-    def _call_claude(self, api_key, senate_summary, price_summary):
+    def _call_claude(self, api_key, insider_summary, price_summary):
         import anthropic
         client = anthropic.Anthropic(api_key=api_key)
 
         senate_section = (
-            f"Recent U.S. Senate member trades for {self.symbol}:\n{senate_summary}"
-            if senate_summary
-            else f"No Senate trading data was available for {self.symbol}."
+            f"Recent insider trades (executives, directors) for {self.symbol}:\n{insider_summary}"
+            if insider_summary
+            else f"No insider trading data was available for {self.symbol}."
         )
 
         prompt = f"""You are a financial analyst providing a short-term stock outlook.

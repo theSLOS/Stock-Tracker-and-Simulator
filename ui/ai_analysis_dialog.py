@@ -237,8 +237,8 @@ class AIAnalysisDialog(QDialog):
             price_lbl.setStyleSheet("font-size: 11px; color: #666666; font-family: monospace;")
             data_layout.addWidget(price_lbl)
 
-        senate_display = senate_text if senate_text else "No Senate trading data was available."
-        senate_title = QLabel("Senate trades used")
+        senate_display = senate_text if senate_text else "No insider trading data was available."
+        senate_title = QLabel("Insider trades used")
         senate_title.setStyleSheet("font-size: 11px; font-weight: bold; color: #777777;")
         data_layout.addWidget(senate_title)
         senate_lbl = QLabel(senate_display)

@@ -132,7 +132,7 @@ class MainWindow(QMainWindow):
         senate_separator.setFrameShape(QFrame.Shape.HLine)
         senate_separator.setStyleSheet("color: #555555; margin-top: 12px; margin-bottom: 12px;")
 
-        senate_title = QLabel("Senate Trades")
+        senate_title = QLabel("Insider Trades")
         senate_title.setStyleSheet("font-size: 13px; font-weight: bold; color: #aaaaaa;")
 
         self._senate_status = QLabel("—")
@@ -412,22 +412,25 @@ class MainWindow(QMainWindow):
                 w.deleteLater()
 
         if not trades:
-            self._senate_status.setText("No recent Senate trades found.")
+            self._senate_status.setText("No recent insider trades found.")
             return
 
         self._senate_status.hide()
         for t in trades:
-            senator = t.get("senator") or t.get("name") or "Unknown"
+            name = t.get("name") or t.get("senator") or "Unknown"
             trade_type = (t.get("type") or t.get("transaction_type") or "Unknown").upper()
             date = t.get("transaction_date") or t.get("date") or ""
+            amount = t.get("amount", "")
 
             is_buy = any(k in trade_type for k in ("BUY", "PURCHASE"))
-            color = "#00cc66" if is_buy else "#ff4444"
-            arrow = "▲" if is_buy else "▼"
+            is_sell = any(k in trade_type for k in ("SALE", "SELL"))
+            color = "#00cc66" if is_buy else ("#ff4444" if is_sell else "#888888")
+            arrow = "▲" if is_buy else ("▼" if is_sell else "·")
 
+            detail = f"{date}" + (f"  ·  {amount}" if amount else "")
             entry = QLabel(
-                f'<span style="color:{color};">{arrow} {trade_type}</span>  {senator}'
-                f'<br><span style="color:#777777; font-size:11px;">{date}</span>'
+                f'<span style="color:{color};">{arrow} {trade_type}</span>  {name}'
+                f'<br><span style="color:#666666; font-size:11px;">{detail}</span>'
             )
             entry.setTextFormat(Qt.TextFormat.RichText)
             entry.setWordWrap(True)

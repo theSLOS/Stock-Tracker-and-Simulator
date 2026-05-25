@@ -10,13 +10,14 @@ A desktop stock portfolio viewer and predictor built with Python and PyQt6.
 - **Technical indicators** — toggle SMA 20, SMA 50, and EMA 20 overlays on the chart
 - **Date range filter** — view 1 month, 3 months, 6 months, 1 year, or all-time data
 - **30-day price prediction** — powered by Meta's Prophet model, with a confidence band drawn on the chart and a BUY / HOLD / SELL signal
-- **AI market analysis** — uses the Claude API to score a stock from -10 to +10 with pros and cons, fed by real-world context and recent U.S. Senate trade disclosures; results are cached per-user for 24 hours
-- **Senate trades panel** — shows recent U.S. Senate member trades for the selected stock, sourced from Senate Stock Watcher
+- **AI market analysis** — uses the Claude API to score a stock -10 to +10, with a plain-English summary, pros and cons, and insider trade context; results are cached per-user for 24 hours
+- **Insider trades panel** — shows recent executive and director trades (SEC filings) for the selected stock, sourced from Finnhub
 
 ## Requirements
 
 - Python 3.10+
-- An Anthropic API key (for AI analysis) — set `ANTHROPIC_API_KEY=sk-ant-...` in a `.env` file
+- An **Anthropic API key** (for AI analysis) — `ANTHROPIC_API_KEY=sk-ant-...`
+- A **Finnhub API key** (for insider trades) — `FINNHUB_API_KEY=...` — free account at [finnhub.io](https://finnhub.io), no credit card required
 - See `requirements.txt` for all Python dependencies
 
 ## Setup
@@ -31,13 +32,14 @@ pip install -r requirements.txt
 
 > **Note:** `prophet` pulls in a number of dependencies (including `cmdstanpy` and `matplotlib`) and may take a minute or two to install. On Windows, you may need to enable long path support first — see [pip's long paths guide](https://pip.pypa.io/warnings/enable-long-paths).
 
-Create a `.env` file in the project root and add your Anthropic API key:
+Create a `.env` file in the project root:
 
 ```
 ANTHROPIC_API_KEY=sk-ant-...
+FINNHUB_API_KEY=your_finnhub_key
 ```
 
-The AI analysis feature will not work without this key, but all other features will function normally.
+The AI analysis feature requires `ANTHROPIC_API_KEY`. The insider trades panel requires `FINNHUB_API_KEY`. All other features work without either key.
 
 ## Running the app
 
@@ -67,7 +69,7 @@ Stock-App/
 │   ├── stock_model.py        # StockPackage data model
 │   ├── prediction_worker.py  # Background thread running the Prophet model
 │   ├── ai_analysis_worker.py # Background thread running the Claude AI analysis
-│   └── senate_worker.py      # Background thread fetching Senate trade disclosures
+│   └── senate_worker.py      # Background thread fetching insider trades from Finnhub
 └── Users/
     └── <username>/
         ├── profile.json  # User settings and preferences
@@ -79,4 +81,4 @@ Stock-App/
 
 - Stock CSVs and cache files are **not committed to git** — they are downloaded fresh on each new machine
 - AI analysis results are cached inside the user's cache file for 24 hours to avoid redundant API calls
-- The `.env` file (if used) can set `ANTHROPIC_API_KEY` and an optional `CSV_PATH` override
+- The `.env` file sets `ANTHROPIC_API_KEY`, `FINNHUB_API_KEY`, and optional `CSV_PATH`/`CACHE_PATH` overrides
