@@ -35,6 +35,8 @@ class AIAnalysisWorker(QThread):
 
             self.status.emit("Running AI analysis...")
             result = self._call_claude(api_key, senate_summary, price_summary)
+            result["price_summary"] = price_summary
+            result["senate_summary"] = senate_summary
             self.finished.emit(result)
 
         except Exception as e:
@@ -100,14 +102,16 @@ Recent price data (last 30 days):
 Using this data plus your knowledge of this company, recent news, industry trends, and macroeconomic conditions:
 
 1. Give an integer score from -10 to 10 on the stock's 30-day outlook. Negative = bearish, positive = bullish, 0 = neutral.
-2. Give exactly 3 to 5 pros (reasons the stock may rise).
-3. Give exactly 3 to 5 cons (reasons the stock may fall).
+2. Give a 1-2 sentence summary explaining the single most important reason the score landed where it did.
+3. Give exactly 3 to 5 pros (reasons the stock may rise).
+4. Give exactly 3 to 5 cons (reasons the stock may fall).
 
 Be specific — reference real factors such as products, earnings, sector trends, or Senate activity if relevant. Avoid generic platitudes.
 
 Respond ONLY with a JSON object in this exact format with no surrounding text:
 {{
   "score": <integer -10 to 10>,
+  "summary": "<1-2 sentences on the key driver>",
   "pros": ["...", "...", "..."],
   "cons": ["...", "...", "..."]
 }}"""

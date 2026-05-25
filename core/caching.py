@@ -89,6 +89,7 @@ class CacheManager:
         entry['ai_analysis'] = {
             'timestamp': dt.now().isoformat(),
             'score': result.get('score'),
+            'summary': result.get('summary', ''),
             'pros': result.get('pros', []),
             'cons': result.get('cons', [])
         }

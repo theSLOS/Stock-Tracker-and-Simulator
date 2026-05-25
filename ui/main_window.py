@@ -124,6 +124,10 @@ class MainWindow(QMainWindow):
         self.ai_desc_label = QLabel("")
         self.ai_desc_label.setStyleSheet("font-size: 11px; color: #aaaaaa;")
 
+        self.ai_summary_label = QLabel("")
+        self.ai_summary_label.setStyleSheet("font-size: 11px; color: #888888; font-style: italic;")
+        self.ai_summary_label.setWordWrap(True)
+
         senate_separator = QFrame()
         senate_separator.setFrameShape(QFrame.Shape.HLine)
         senate_separator.setStyleSheet("color: #555555; margin-top: 12px; margin-bottom: 12px;")
@@ -164,6 +168,7 @@ class MainWindow(QMainWindow):
         info_layout.addWidget(self.ai_button)
         info_layout.addWidget(self.ai_score_label)
         info_layout.addWidget(self.ai_desc_label)
+        info_layout.addWidget(self.ai_summary_label)
         info_layout.addWidget(senate_separator)
         info_layout.addWidget(senate_title)
         info_layout.addSpacing(4)
@@ -386,6 +391,7 @@ class MainWindow(QMainWindow):
         self.ai_score_label.setStyleSheet(f"font-size: 22px; font-weight: bold; color: {color};")
         self.ai_desc_label.setText(desc)
         self.ai_desc_label.setStyleSheet(f"font-size: 11px; color: {color};")
+        self.ai_summary_label.setText(result.get("summary", ""))
 
     def _fetch_senate_trades(self, symbol):
         from core.senate_worker import SenateWorker
@@ -474,6 +480,7 @@ class MainWindow(QMainWindow):
             self.ai_button.setEnabled(False)
             self.ai_score_label.setText("")
             self.ai_desc_label.setText("")
+            self.ai_summary_label.setText("")
             self._senate_status.setText("—")
             self._senate_status.show()
             self.symbol_label.setText("—")
@@ -503,6 +510,7 @@ class MainWindow(QMainWindow):
         else:
             self.ai_score_label.setText("")
             self.ai_desc_label.setText("")
+            self.ai_summary_label.setText("")
         self._fetch_senate_trades(symbol)
 
     def _set_controls_enabled(self, enabled):

@@ -144,6 +144,15 @@ class AIAnalysisDialog(QDialog):
         score_section.addWidget(score_label)
         score_section.addWidget(bar)
         score_section.addWidget(desc_label)
+
+        summary_text = result.get("summary", "")
+        if summary_text:
+            summary_label = QLabel(summary_text)
+            summary_label.setStyleSheet("font-size: 12px; color: #bbbbbb; font-style: italic;")
+            summary_label.setWordWrap(True)
+            summary_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            score_section.addWidget(summary_label)
+
         score_widget = QWidget()
         score_widget.setLayout(score_section)
         self._results_layout.addWidget(score_widget)
@@ -200,7 +209,57 @@ class AIAnalysisDialog(QDialog):
             ts_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self._results_layout.addWidget(ts_label)
 
+        price_text = result.get("price_summary", "")
+        senate_text = result.get("senate_summary") or ""
+        if price_text or senate_text:
+            self._build_data_section(price_text, senate_text)
+
         self._results_widget.show()
+
+    def _build_data_section(self, price_text, senate_text):
+        toggle_btn = QPushButton("▶  Show data used")
+        toggle_btn.setStyleSheet(
+            "font-size: 11px; color: #666666; background: transparent; border: none; text-align: left; padding: 0;"
+        )
+        toggle_btn.setFlat(True)
+        toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        data_widget = QWidget()
+        data_layout = QVBoxLayout(data_widget)
+        data_layout.setContentsMargins(8, 4, 8, 4)
+        data_layout.setSpacing(6)
+
+        if price_text:
+            price_title = QLabel("30-day price data")
+            price_title.setStyleSheet("font-size: 11px; font-weight: bold; color: #777777;")
+            data_layout.addWidget(price_title)
+            price_lbl = QLabel(price_text)
+            price_lbl.setStyleSheet("font-size: 11px; color: #666666; font-family: monospace;")
+            data_layout.addWidget(price_lbl)
+
+        senate_display = senate_text if senate_text else "No Senate trading data was available."
+        senate_title = QLabel("Senate trades used")
+        senate_title.setStyleSheet("font-size: 11px; font-weight: bold; color: #777777;")
+        data_layout.addWidget(senate_title)
+        senate_lbl = QLabel(senate_display)
+        senate_lbl.setStyleSheet("font-size: 11px; color: #666666;")
+        senate_lbl.setWordWrap(True)
+        data_layout.addWidget(senate_lbl)
+
+        data_widget.hide()
+
+        def _toggle():
+            if data_widget.isVisible():
+                data_widget.hide()
+                toggle_btn.setText("▶  Show data used")
+            else:
+                data_widget.show()
+                toggle_btn.setText("▼  Hide data used")
+            self.adjustSize()
+
+        toggle_btn.clicked.connect(_toggle)
+        self._results_layout.addWidget(toggle_btn)
+        self._results_layout.addWidget(data_widget)
 
     def show_error(self, message):
         self._status_label.setText(f"Error: {message}")
