@@ -28,8 +28,8 @@ class PredictionWorker(QThread):
             model = Prophet(
                 daily_seasonality=False,
                 weekly_seasonality=False,
-                changepoint_prior_scale=0.15,
-                changepoint_range=0.95,
+                changepoint_prior_scale=0.05,
+                changepoint_range=0.80,
             )
             model.fit(prophet_df)
             future = model.make_future_dataframe(periods=30)

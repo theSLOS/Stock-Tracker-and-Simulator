@@ -5,3 +5,5 @@ numpy
 yfinance
 python-dotenv
 prophet
+anthropic
+requests

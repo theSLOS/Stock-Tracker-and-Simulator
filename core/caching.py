@@ -76,6 +76,33 @@ class CacheManager:
             entry['lastUpdate'] = dt.now().isoformat()
             self.save_cache()
 
+    def get_ai_analysis(self, symbol: str):
+        entry = self.data.get(symbol)
+        if entry is None:
+            return None
+        return entry.get('ai_analysis')
+
+    def set_ai_analysis(self, symbol: str, result: dict):
+        entry = self.data.get(symbol)
+        if entry is None:
+            return
+        entry['ai_analysis'] = {
+            'timestamp': dt.now().isoformat(),
+            'score': result.get('score'),
+            'pros': result.get('pros', []),
+            'cons': result.get('cons', [])
+        }
+        self.save_cache()
+
+    def is_ai_analysis_fresh(self, symbol: str, hours: int = 24) -> bool:
+        analysis = self.get_ai_analysis(symbol)
+        if not analysis:
+            return False
+        timestamp_str = analysis.get('timestamp')
+        if not timestamp_str:
+            return False
+        return (dt.now() - dt.fromisoformat(timestamp_str)).total_seconds() < hours * 3600
+
     def display_cache(self):
         import json
         print(json.dumps(self.data, indent=4))

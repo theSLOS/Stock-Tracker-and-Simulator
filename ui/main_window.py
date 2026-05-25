@@ -9,9 +9,9 @@ from ui.stock_chart import StockChart
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
     QHBoxLayout, QVBoxLayout, QLabel, QComboBox, QMessageBox,
-    QInputDialog, QPushButton, QFrame
+    QInputDialog, QPushButton, QFrame, QScrollArea
 )
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PyQt6.QtGui import QPalette, QColor
 
 
@@ -54,6 +54,8 @@ class MainWindow(QMainWindow):
         self._worker_symbol = None
         self._worker_mode = None
         self._pred_worker = None
+        self._ai_worker = None
+        self._senate_worker = None
 
         self.setWindowTitle(f"Stock Viewer - User: {self.username}")
         self.resize(1400, 800)
@@ -105,6 +107,46 @@ class MainWindow(QMainWindow):
         self.pred_signal_label = QLabel("")
         self.pred_signal_label.setStyleSheet("font-size: 13px; font-weight: bold;")
 
+        ai_separator = QFrame()
+        ai_separator.setFrameShape(QFrame.Shape.HLine)
+        ai_separator.setStyleSheet("color: #555555; margin-top: 12px; margin-bottom: 12px;")
+
+        ai_title = QLabel("AI Analysis")
+        ai_title.setStyleSheet("font-size: 13px; font-weight: bold; color: #aaaaaa;")
+
+        self.ai_button = QPushButton("Analyse with AI")
+        self.ai_button.clicked.connect(self.run_ai_analysis)
+        self.ai_button.setEnabled(False)
+
+        self.ai_score_label = QLabel("")
+        self.ai_score_label.setStyleSheet("font-size: 13px; font-weight: bold;")
+
+        self.ai_desc_label = QLabel("")
+        self.ai_desc_label.setStyleSheet("font-size: 11px; color: #aaaaaa;")
+
+        senate_separator = QFrame()
+        senate_separator.setFrameShape(QFrame.Shape.HLine)
+        senate_separator.setStyleSheet("color: #555555; margin-top: 12px; margin-bottom: 12px;")
+
+        senate_title = QLabel("Senate Trades")
+        senate_title.setStyleSheet("font-size: 13px; font-weight: bold; color: #aaaaaa;")
+
+        self._senate_status = QLabel("—")
+        self._senate_status.setStyleSheet("font-size: 11px; color: #666666;")
+        self._senate_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self._senate_container = QWidget()
+        self._senate_container.setStyleSheet("background: transparent;")
+        self._senate_inner_layout = QVBoxLayout(self._senate_container)
+        self._senate_inner_layout.setContentsMargins(0, 0, 0, 0)
+        self._senate_inner_layout.setSpacing(8)
+
+        senate_scroll = QScrollArea()
+        senate_scroll.setWidgetResizable(True)
+        senate_scroll.setWidget(self._senate_container)
+        senate_scroll.setMaximumHeight(190)
+        senate_scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
         info_layout.addWidget(self.symbol_label)
         info_layout.addWidget(self.name_label)
         info_layout.addWidget(self.price_label)
@@ -116,6 +158,17 @@ class MainWindow(QMainWindow):
         info_layout.addWidget(self.pred_price_label)
         info_layout.addWidget(self.pred_range_label)
         info_layout.addWidget(self.pred_signal_label)
+        info_layout.addWidget(ai_separator)
+        info_layout.addWidget(ai_title)
+        info_layout.addSpacing(4)
+        info_layout.addWidget(self.ai_button)
+        info_layout.addWidget(self.ai_score_label)
+        info_layout.addWidget(self.ai_desc_label)
+        info_layout.addWidget(senate_separator)
+        info_layout.addWidget(senate_title)
+        info_layout.addSpacing(4)
+        info_layout.addWidget(self._senate_status)
+        info_layout.addWidget(senate_scroll)
         info_layout.addStretch()
 
         # --- RIGHT: chart + controls
@@ -295,6 +348,85 @@ class MainWindow(QMainWindow):
         if key:
             self.chart.toggle_indicator(key, btn.isChecked())
 
+    def run_ai_analysis(self):
+        if self.df.empty:
+            return
+        from ui.ai_analysis_dialog import AIAnalysisDialog
+        from core.ai_analysis_worker import AIAnalysisWorker
+        symbol = self.stock_combo.currentData()
+        info = self.cache.get_stock_data(symbol)
+        name = info.get("name", symbol) if info else symbol
+
+        if self.cache.is_ai_analysis_fresh(symbol):
+            cached = self.cache.get_ai_analysis(symbol)
+            dialog = AIAnalysisDialog(symbol, name, self)
+            dialog.show_results(cached)
+            dialog.exec()
+            return
+
+        self._ai_worker = AIAnalysisWorker(symbol, name, self.df)
+        dialog = AIAnalysisDialog(symbol, name, self)
+        self._ai_worker.finished.connect(dialog.show_results)
+        self._ai_worker.finished.connect(lambda result, sym=symbol: self._save_and_display_ai(sym, result))
+        self._ai_worker.error.connect(dialog.show_error)
+        self._ai_worker.status.connect(dialog.update_status)
+        self._ai_worker.start()
+        dialog.exec()
+
+    def _save_and_display_ai(self, symbol, result):
+        self.cache.set_ai_analysis(symbol, result)
+        self._update_ai_score(result)
+
+    def _update_ai_score(self, result):
+        from ui.ai_analysis_dialog import _score_color, _score_description
+        score = result.get("score", 0)
+        color = _score_color(score)
+        desc = _score_description(score)
+        self.ai_score_label.setText(f"{score:+d}")
+        self.ai_score_label.setStyleSheet(f"font-size: 22px; font-weight: bold; color: {color};")
+        self.ai_desc_label.setText(desc)
+        self.ai_desc_label.setStyleSheet(f"font-size: 11px; color: {color};")
+
+    def _fetch_senate_trades(self, symbol):
+        from core.senate_worker import SenateWorker
+        self._senate_status.setText("Loading...")
+        self._senate_status.show()
+        for i in reversed(range(self._senate_inner_layout.count())):
+            w = self._senate_inner_layout.itemAt(i).widget()
+            if w:
+                w.deleteLater()
+        self._senate_worker = SenateWorker(symbol)
+        self._senate_worker.finished.connect(self._update_senate_trades)
+        self._senate_worker.start()
+
+    def _update_senate_trades(self, trades):
+        for i in reversed(range(self._senate_inner_layout.count())):
+            w = self._senate_inner_layout.itemAt(i).widget()
+            if w:
+                w.deleteLater()
+
+        if not trades:
+            self._senate_status.setText("No recent Senate trades found.")
+            return
+
+        self._senate_status.hide()
+        for t in trades:
+            senator = t.get("senator") or t.get("name") or "Unknown"
+            trade_type = (t.get("type") or t.get("transaction_type") or "Unknown").upper()
+            date = t.get("transaction_date") or t.get("date") or ""
+
+            is_buy = any(k in trade_type for k in ("BUY", "PURCHASE"))
+            color = "#00cc66" if is_buy else "#ff4444"
+            arrow = "▲" if is_buy else "▼"
+
+            entry = QLabel(
+                f'<span style="color:{color};">{arrow} {trade_type}</span>  {senator}'
+                f'<br><span style="color:#777777; font-size:11px;">{date}</span>'
+            )
+            entry.setTextFormat(Qt.TextFormat.RichText)
+            entry.setWordWrap(True)
+            self._senate_inner_layout.addWidget(entry)
+
     def run_prediction(self):
         if self.df.empty:
             return
@@ -339,6 +471,11 @@ class MainWindow(QMainWindow):
         self.chart.clear_prediction()
         if symbol is None or self.df.empty:
             self.predict_button.setEnabled(False)
+            self.ai_button.setEnabled(False)
+            self.ai_score_label.setText("")
+            self.ai_desc_label.setText("")
+            self._senate_status.setText("—")
+            self._senate_status.show()
             self.symbol_label.setText("—")
             self.name_label.setText("")
             self.price_label.setText("—")
@@ -359,6 +496,14 @@ class MainWindow(QMainWindow):
             self.change_label.setText(f"▼ {change_pct:.2f}%")
             self.change_label.setStyleSheet("font-size: 15px; color: #ff4444;")
         self.predict_button.setEnabled(True)
+        self.ai_button.setEnabled(True)
+        cached = self.cache.get_ai_analysis(symbol)
+        if cached and self.cache.is_ai_analysis_fresh(symbol):
+            self._update_ai_score(cached)
+        else:
+            self.ai_score_label.setText("")
+            self.ai_desc_label.setText("")
+        self._fetch_senate_trades(symbol)
 
     def _set_controls_enabled(self, enabled):
         self.stock_combo.setEnabled(enabled)
