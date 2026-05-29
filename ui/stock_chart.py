@@ -131,7 +131,7 @@ class StockChart(QWidget):
             last_date = pd.Timestamp(last_date)
         future = forecast[forecast['ds'] > last_date].copy()
 
-        x = np.array(future['ds'].astype('int64') // 10 ** 9)
+        x = future['ds'].astype('datetime64[s]').astype('int64').to_numpy()
         y_mean = np.array(future['yhat'])
         y_upper = np.array(future['yhat_upper'])
         y_lower = np.array(future['yhat_lower'])

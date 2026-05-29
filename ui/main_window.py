@@ -9,7 +9,7 @@ from ui.stock_chart import StockChart
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
     QHBoxLayout, QVBoxLayout, QLabel, QComboBox, QMessageBox,
-    QInputDialog, QPushButton, QFrame, QScrollArea
+    QInputDialog, QPushButton, QFrame, QScrollArea, QTabWidget
 )
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PyQt6.QtGui import QPalette, QColor
@@ -88,10 +88,83 @@ class MainWindow(QMainWindow):
 
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setStyleSheet("color: #555555; margin-top: 12px; margin-bottom: 12px;")
+        separator.setStyleSheet("color: #555555; margin-top: 8px; margin-bottom: 4px;")
+
+        # --- Tabs ---
+        tabs = QTabWidget()
+        tabs.setDocumentMode(True)
+
+        # helper: a key/value stat row
+        def stat_row(label_text):
+            w = QWidget()
+            row = QHBoxLayout(w)
+            row.setContentsMargins(0, 0, 0, 0)
+            k = QLabel(label_text)
+            k.setStyleSheet("font-size: 11px; color: #888888;")
+            v = QLabel("—")
+            v.setStyleSheet("font-size: 11px; color: #dddddd; font-weight: bold;")
+            v.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            row.addWidget(k)
+            row.addStretch()
+            row.addWidget(v)
+            return w, v
+
+        # ---- Info tab ----
+        info_tab = QWidget()
+        info_tab_layout = QVBoxLayout(info_tab)
+        info_tab_layout.setContentsMargins(4, 12, 4, 8)
+        info_tab_layout.setSpacing(6)
+
+        stats_title = QLabel("Statistics")
+        stats_title.setStyleSheet("font-size: 12px; font-weight: bold; color: #aaaaaa;")
+
+        month_high_row, self.stat_month_high = stat_row("1M High")
+        month_low_row,  self.stat_month_low  = stat_row("1M Low")
+        w52_high_row,   self.stat_52w_high   = stat_row("52W High")
+        w52_low_row,    self.stat_52w_low    = stat_row("52W Low")
+        avg_vol_row,    self.stat_avg_vol    = stat_row("Avg Vol (30d)")
+
+        stats_sep = QFrame()
+        stats_sep.setFrameShape(QFrame.Shape.HLine)
+        stats_sep.setStyleSheet("color: #555555; margin-top: 6px; margin-bottom: 6px;")
+
+        insider_title = QLabel("Insider Trades")
+        insider_title.setStyleSheet("font-size: 12px; font-weight: bold; color: #aaaaaa;")
+
+        self._senate_status = QLabel("—")
+        self._senate_status.setStyleSheet("font-size: 11px; color: #666666;")
+        self._senate_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self._senate_container = QWidget()
+        self._senate_container.setStyleSheet("background: transparent;")
+        self._senate_inner_layout = QVBoxLayout(self._senate_container)
+        self._senate_inner_layout.setContentsMargins(0, 0, 0, 0)
+        self._senate_inner_layout.setSpacing(8)
+
+        senate_scroll = QScrollArea()
+        senate_scroll.setWidgetResizable(True)
+        senate_scroll.setWidget(self._senate_container)
+        senate_scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        info_tab_layout.addWidget(stats_title)
+        info_tab_layout.addWidget(month_high_row)
+        info_tab_layout.addWidget(month_low_row)
+        info_tab_layout.addWidget(w52_high_row)
+        info_tab_layout.addWidget(w52_low_row)
+        info_tab_layout.addWidget(avg_vol_row)
+        info_tab_layout.addWidget(stats_sep)
+        info_tab_layout.addWidget(insider_title)
+        info_tab_layout.addWidget(self._senate_status)
+        info_tab_layout.addWidget(senate_scroll, stretch=1)
+
+        # ---- Analysis tab ----
+        analysis_tab = QWidget()
+        analysis_tab_layout = QVBoxLayout(analysis_tab)
+        analysis_tab_layout.setContentsMargins(4, 12, 4, 8)
+        analysis_tab_layout.setSpacing(4)
 
         pred_title = QLabel("Prediction (30 days)")
-        pred_title.setStyleSheet("font-size: 13px; font-weight: bold; color: #aaaaaa;")
+        pred_title.setStyleSheet("font-size: 12px; font-weight: bold; color: #aaaaaa;")
 
         self.predict_button = QPushButton("Predict Next Month")
         self.predict_button.clicked.connect(self.run_prediction)
@@ -109,10 +182,10 @@ class MainWindow(QMainWindow):
 
         ai_separator = QFrame()
         ai_separator.setFrameShape(QFrame.Shape.HLine)
-        ai_separator.setStyleSheet("color: #555555; margin-top: 12px; margin-bottom: 12px;")
+        ai_separator.setStyleSheet("color: #555555; margin-top: 10px; margin-bottom: 10px;")
 
         ai_title = QLabel("AI Analysis")
-        ai_title.setStyleSheet("font-size: 13px; font-weight: bold; color: #aaaaaa;")
+        ai_title.setStyleSheet("font-size: 12px; font-weight: bold; color: #aaaaaa;")
 
         self.ai_button = QPushButton("Analyse with AI")
         self.ai_button.clicked.connect(self.run_ai_analysis)
@@ -128,53 +201,30 @@ class MainWindow(QMainWindow):
         self.ai_summary_label.setStyleSheet("font-size: 11px; color: #888888; font-style: italic;")
         self.ai_summary_label.setWordWrap(True)
 
-        senate_separator = QFrame()
-        senate_separator.setFrameShape(QFrame.Shape.HLine)
-        senate_separator.setStyleSheet("color: #555555; margin-top: 12px; margin-bottom: 12px;")
+        analysis_tab_layout.addWidget(pred_title)
+        analysis_tab_layout.addSpacing(4)
+        analysis_tab_layout.addWidget(self.predict_button)
+        analysis_tab_layout.addWidget(self.pred_price_label)
+        analysis_tab_layout.addWidget(self.pred_range_label)
+        analysis_tab_layout.addWidget(self.pred_signal_label)
+        analysis_tab_layout.addWidget(ai_separator)
+        analysis_tab_layout.addWidget(ai_title)
+        analysis_tab_layout.addSpacing(4)
+        analysis_tab_layout.addWidget(self.ai_button)
+        analysis_tab_layout.addWidget(self.ai_score_label)
+        analysis_tab_layout.addWidget(self.ai_desc_label)
+        analysis_tab_layout.addWidget(self.ai_summary_label)
+        analysis_tab_layout.addStretch()
 
-        senate_title = QLabel("Insider Trades")
-        senate_title.setStyleSheet("font-size: 13px; font-weight: bold; color: #aaaaaa;")
-
-        self._senate_status = QLabel("—")
-        self._senate_status.setStyleSheet("font-size: 11px; color: #666666;")
-        self._senate_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        self._senate_container = QWidget()
-        self._senate_container.setStyleSheet("background: transparent;")
-        self._senate_inner_layout = QVBoxLayout(self._senate_container)
-        self._senate_inner_layout.setContentsMargins(0, 0, 0, 0)
-        self._senate_inner_layout.setSpacing(8)
-
-        senate_scroll = QScrollArea()
-        senate_scroll.setWidgetResizable(True)
-        senate_scroll.setWidget(self._senate_container)
-        senate_scroll.setMaximumHeight(190)
-        senate_scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        tabs.addTab(info_tab, "Info")
+        tabs.addTab(analysis_tab, "Analysis")
 
         info_layout.addWidget(self.symbol_label)
         info_layout.addWidget(self.name_label)
         info_layout.addWidget(self.price_label)
         info_layout.addWidget(self.change_label)
         info_layout.addWidget(separator)
-        info_layout.addWidget(pred_title)
-        info_layout.addSpacing(4)
-        info_layout.addWidget(self.predict_button)
-        info_layout.addWidget(self.pred_price_label)
-        info_layout.addWidget(self.pred_range_label)
-        info_layout.addWidget(self.pred_signal_label)
-        info_layout.addWidget(ai_separator)
-        info_layout.addWidget(ai_title)
-        info_layout.addSpacing(4)
-        info_layout.addWidget(self.ai_button)
-        info_layout.addWidget(self.ai_score_label)
-        info_layout.addWidget(self.ai_desc_label)
-        info_layout.addWidget(self.ai_summary_label)
-        info_layout.addWidget(senate_separator)
-        info_layout.addWidget(senate_title)
-        info_layout.addSpacing(4)
-        info_layout.addWidget(self._senate_status)
-        info_layout.addWidget(senate_scroll)
-        info_layout.addStretch()
+        info_layout.addWidget(tabs, stretch=1)
 
         # --- RIGHT: chart + controls
         right_panel = QWidget()
@@ -490,6 +540,9 @@ class MainWindow(QMainWindow):
             self.name_label.setText("")
             self.price_label.setText("—")
             self.change_label.setText("")
+            for lbl in (self.stat_month_high, self.stat_month_low,
+                        self.stat_52w_high, self.stat_52w_low, self.stat_avg_vol):
+                lbl.setText("—")
             return
         info = self.cache.get_stock_data(symbol)
         name = info.get("name", symbol) if info else symbol
@@ -505,6 +558,23 @@ class MainWindow(QMainWindow):
         else:
             self.change_label.setText(f"▼ {change_pct:.2f}%")
             self.change_label.setStyleSheet("font-size: 15px; color: #ff4444;")
+
+        # stats
+        now = pd.Timestamp.now()
+        month_df = self.df[self.df.index >= now - pd.Timedelta(days=30)]
+        year_df  = self.df[self.df.index >= now - pd.Timedelta(days=365)]
+        if not month_df.empty:
+            self.stat_month_high.setText(f"${month_df['High'].max():.2f}")
+            self.stat_month_low.setText(f"${month_df['Low'].min():.2f}")
+            avg = month_df["Volume"].mean()
+            self.stat_avg_vol.setText(f"{avg/1e6:.1f}M" if avg >= 1e6 else f"{avg/1e3:.0f}K")
+        else:
+            self.stat_month_high.setText("—")
+            self.stat_month_low.setText("—")
+            self.stat_avg_vol.setText("—")
+        self.stat_52w_high.setText(f"${year_df['High'].max():.2f}" if not year_df.empty else "—")
+        self.stat_52w_low.setText(f"${year_df['Low'].min():.2f}" if not year_df.empty else "—")
+
         self.predict_button.setEnabled(True)
         self.ai_button.setEnabled(True)
         cached = self.cache.get_ai_analysis(symbol)
