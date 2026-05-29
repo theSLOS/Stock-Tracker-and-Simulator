@@ -49,6 +49,20 @@ python main.py
 
 On first launch you will be prompted to log in. Use the **New User** button to create an account. Once logged in, your default stock (AAPL) will be fetched automatically if your portfolio is empty.
 
+To skip the login dialog and auto-login from the terminal, pass `--user` and `--password`:
+
+```bash
+python main.py --user admin --password password
+```
+
+Short flags also work:
+
+```bash
+python main.py -u admin -p password
+```
+
+If the credentials are invalid the app falls back to the normal login dialog.
+
 ## Project structure
 
 ```
@@ -57,7 +71,9 @@ Stock-App/
 ├── requirements.txt
 ├── .env                  # API keys (not committed)
 ├── ui/                   # All UI components
-│   ├── main_window.py        # Main window and app logic
+│   ├── main_window.py        # Main window — wires panels, owns background workers
+│   ├── info_panel.py         # Left panel — stock header, stats tabs, insider trades, AI/prediction
+│   ├── chart_panel.py        # Right panel — stock selector, chart, date range, indicators
 │   ├── stock_chart.py        # Self-contained chart widget (pyqtgraph)
 │   ├── login_page.py         # Login dialog
 │   ├── register_page.py      # New user registration dialog
