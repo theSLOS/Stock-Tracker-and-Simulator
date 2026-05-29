@@ -9,6 +9,15 @@ from PyQt6.QtGui import QLinearGradient, QColor, QBrush
 import pyqtgraph as pg
 
 
+class _DateAxis(pg.AxisItem):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.enableAutoSIPrefix(False)
+
+    def tickStrings(self, values, scale, spacing):
+        return [dt.fromtimestamp(v).strftime('%b %d, %Y') for v in values]
+
+
 class StockChart(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -22,13 +31,15 @@ class StockChart(QWidget):
         self._pred_curves = []
 
         # --- plot widget
-        self.plot_widget = pg.PlotWidget()
+        date_axis = _DateAxis(orientation='bottom')
+        date_axis.setPen(pg.mkPen('#3a3a5c'))
+        date_axis.setTextPen(pg.mkPen('#888'))
+        self.plot_widget = pg.PlotWidget(axisItems={'bottom': date_axis})
         self.plot_widget.setBackground('#1a1a2e')
         self.plot_widget.showGrid(x=True, y=True, alpha=0.12)
-        for side in ('left', 'bottom'):
-            ax = self.plot_widget.getPlotItem().getAxis(side)
-            ax.setPen(pg.mkPen('#3a3a5c'))
-            ax.setTextPen(pg.mkPen('#888'))
+        left_ax = self.plot_widget.getPlotItem().getAxis('left')
+        left_ax.setPen(pg.mkPen('#3a3a5c'))
+        left_ax.setTextPen(pg.mkPen('#888'))
 
         # gradient fill under price line
         gradient = QLinearGradient(0, 0, 0, 1)
@@ -176,11 +187,9 @@ class StockChart(QWidget):
             df.index = pd.to_datetime(df.index)
         df = df.sort_index()
 
-        self.x_data = np.array(df.index.astype('int64') // 10 ** 9)
+        self.x_data = df.index.astype('datetime64[s]').astype('int64').to_numpy()
         self.y_data = np.array(df['Close'])
 
-        axis = pg.graphicsItems.DateAxisItem.DateAxisItem(orientation='bottom')
-        self.plot_widget.setAxisItems({'bottom': axis})
         self.plot_widget.setLabel('left', 'Price (USD)')
 
         self._price_curve.setData(self.x_data, self.y_data, fillLevel=float(self.y_data.min()))
