@@ -1,10 +1,9 @@
+import math
 import os
 
 import pandas as pd
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QPainter
+from PyQt6.QtCore import QEasingCurve, QPropertyAnimation, QRectF, Qt, pyqtProperty, pyqtSignal
+from PyQt6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen
 from PyQt6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel,
     QPushButton, QVBoxLayout, QWidget,
@@ -36,6 +35,297 @@ class _AvatarWidget(QWidget):
         p.setFont(font)
         p.setPen(QColor("#ffffff"))
         p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self._initial)
+
+
+def _make_segment_path(cx, cy, outer_r, inner_r, start_angle, span_angle):
+    path = QPainterPath()
+    outer_rect = QRectF(cx - outer_r, cy - outer_r, outer_r * 2, outer_r * 2)
+    inner_rect = QRectF(cx - inner_r, cy - inner_r, inner_r * 2, inner_r * 2)
+    path.arcMoveTo(outer_rect, start_angle)
+    path.arcTo(outer_rect, start_angle, span_angle)
+    path.arcTo(inner_rect, start_angle + span_angle, -span_angle)
+    path.closeSubpath()
+    return path
+
+
+class DonutChartWidget(QWidget):
+    hovered = pyqtSignal(int)
+
+    def __init__(self, positions, colors, parent=None):
+        super().__init__(parent)
+        self._positions = positions
+        self._qcolors = [QColor(c) for c in colors]
+        self._hovered_idx = -1
+        self._draw_progress = 0.0
+        self.setFixedSize(300, 300)
+        self.setMouseTracking(True)
+
+        self._anim = QPropertyAnimation(self, b"draw_progress")
+        self._anim.setDuration(900)
+        self._anim.setStartValue(0.0)
+        self._anim.setEndValue(1.0)
+        self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._anim.start()
+
+    @pyqtProperty(float)
+    def draw_progress(self):
+        return self._draw_progress
+
+    @draw_progress.setter
+    def draw_progress(self, val):
+        self._draw_progress = val
+        self.update()
+
+    def set_hovered(self, idx):
+        if idx != self._hovered_idx:
+            self._hovered_idx = idx
+            self.update()
+
+    def _hit_test(self, pos):
+        cx, cy = self.width() / 2, self.height() / 2
+        outer_r = min(self.width(), self.height()) / 2 - 12
+        inner_r = outer_r * 0.54
+
+        dx = pos.x() - cx
+        dy = pos.y() - cy
+        r = math.sqrt(dx * dx + dy * dy)
+
+        if r < inner_r - 2 or r > outer_r + 14:
+            return -1
+
+        values = [p["current_value"] for p in self._positions]
+        total = sum(values)
+        if total == 0:
+            return -1
+
+        angle = math.degrees(math.atan2(-dy, dx)) % 360
+
+        start = 90.0
+        for i, value in enumerate(values):
+            span = (value / total) * 360.0
+            seg_start = start % 360
+            seg_end = (start + span) % 360
+            if seg_end >= seg_start:
+                if seg_start <= angle < seg_end:
+                    return i
+            else:
+                if angle >= seg_start or angle < seg_end:
+                    return i
+            start += span
+
+        return -1
+
+    def mouseMoveEvent(self, event):
+        idx = self._hit_test(event.position())
+        if idx != self._hovered_idx:
+            self._hovered_idx = idx
+            self.hovered.emit(idx)
+            self.update()
+
+    def leaveEvent(self, event):
+        if self._hovered_idx != -1:
+            self._hovered_idx = -1
+            self.hovered.emit(-1)
+            self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        w, h = self.width(), self.height()
+        cx, cy = w / 2, h / 2
+        outer_r = min(w, h) / 2 - 14
+        inner_r = outer_r * 0.54
+        explode_dist = 10
+
+        values = [p["current_value"] for p in self._positions]
+        total = sum(values)
+        if total == 0:
+            return
+
+        total_sweep = 360.0 * self._draw_progress
+        start = 90.0
+
+        for i, (p, color, value) in enumerate(zip(self._positions, self._qcolors, values)):
+            span = (value / total) * 360.0
+            actual_span = min(span, max(0.0, total_sweep - (start - 90.0)))
+            if actual_span < 0.1:
+                start += span
+                continue
+
+            is_hovered = i == self._hovered_idx
+            mid_rad = math.radians(start + actual_span / 2)
+            edx = math.cos(mid_rad) * explode_dist if is_hovered else 0.0
+            edy = -math.sin(mid_rad) * explode_dist if is_hovered else 0.0
+
+            # Glow layers drawn behind the segment
+            if is_hovered:
+                for glow_extra, alpha in [(20, 18), (13, 32), (6, 52)]:
+                    gc = QColor(color)
+                    gc.setAlpha(alpha)
+                    gpath = _make_segment_path(
+                        cx + edx, cy + edy,
+                        outer_r + glow_extra,
+                        max(inner_r - glow_extra // 2, 8),
+                        start, actual_span,
+                    )
+                    painter.setPen(Qt.PenStyle.NoPen)
+                    painter.fillPath(gpath, QBrush(gc))
+
+            seg_color = QColor(color)
+            if is_hovered:
+                h_hsl, s_hsl, l_hsl, a_hsl = seg_color.getHsl()
+                seg_color.setHsl(h_hsl, min(255, s_hsl + 20), min(255, l_hsl + 22), a_hsl)
+
+            path = _make_segment_path(cx + edx, cy + edy, outer_r, inner_r, start, actual_span)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.fillPath(path, QBrush(seg_color))
+
+            if is_hovered:
+                painter.setPen(QPen(QColor(255, 255, 255, 65), 1.5))
+                painter.drawPath(path)
+
+            start += span
+
+        # Inner circle to clear center (matches app background)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(QColor("#2a2a2a")))
+        painter.drawEllipse(QRectF(cx - inner_r + 1, cy - inner_r + 1, (inner_r - 1) * 2, (inner_r - 1) * 2))
+
+        # Center text: stock detail on hover, total otherwise
+        if 0 <= self._hovered_idx < len(self._positions):
+            p = self._positions[self._hovered_idx]
+            pct = p["current_value"] / total * 100
+            gain_pct = p["gain_pct"]
+            gain_color = QColor("#00cc66") if gain_pct >= 0 else QColor("#ff4444")
+            sign = "+" if gain_pct >= 0 else ""
+
+            font = QFont()
+            font.setPixelSize(15)
+            font.setBold(True)
+            painter.setFont(font)
+            painter.setPen(QColor("#ffffff"))
+            painter.drawText(QRectF(cx - 65, cy - 42, 130, 22), Qt.AlignmentFlag.AlignCenter, p["symbol"])
+
+            font.setPixelSize(12)
+            font.setBold(False)
+            painter.setFont(font)
+            painter.setPen(QColor("#cccccc"))
+            painter.drawText(QRectF(cx - 65, cy - 18, 130, 20), Qt.AlignmentFlag.AlignCenter, f"${p['current_value']:,.0f}")
+
+            font.setPixelSize(10)
+            painter.setFont(font)
+            painter.setPen(QColor("#888888"))
+            painter.drawText(QRectF(cx - 65, cy + 2, 130, 18), Qt.AlignmentFlag.AlignCenter, f"{pct:.1f}% of portfolio")
+
+            font.setPixelSize(12)
+            font.setBold(True)
+            painter.setFont(font)
+            painter.setPen(gain_color)
+            painter.drawText(QRectF(cx - 65, cy + 20, 130, 20), Qt.AlignmentFlag.AlignCenter, f"{sign}{gain_pct:.1f}%")
+        else:
+            font = QFont()
+            font.setPixelSize(17)
+            font.setBold(True)
+            painter.setFont(font)
+            painter.setPen(QColor("#dcdcdc"))
+            painter.drawText(QRectF(cx - 70, cy - 18, 140, 26), Qt.AlignmentFlag.AlignCenter, f"${total:,.0f}")
+
+            font.setPixelSize(10)
+            font.setBold(False)
+            painter.setFont(font)
+            painter.setPen(QColor("#666666"))
+            painter.drawText(QRectF(cx - 70, cy + 8, 140, 18), Qt.AlignmentFlag.AlignCenter, "Total Value")
+
+
+class _LegendRow(QWidget):
+    hover_enter = pyqtSignal(int)
+    hover_leave = pyqtSignal()
+
+    def __init__(self, idx, pos, color, parent=None):
+        super().__init__(parent)
+        self._idx = idx
+        self._color = QColor(color)
+        self._highlighted = False
+        self.setMouseTracking(True)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        layout = QHBoxLayout(self)
+        layout.setSpacing(8)
+        layout.setContentsMargins(6, 3, 6, 3)
+
+        dot = QLabel("●")
+        dot.setStyleSheet(f"color: {color}; font-size: 14px;")
+        dot.setFixedWidth(16)
+
+        sym = QLabel(pos["symbol"])
+        sym.setStyleSheet("font-size: 12px; font-weight: bold;")
+
+        gain_color_hex = "#00cc66" if pos["gain_pct"] >= 0 else "#ff4444"
+        sign = "+" if pos["gain_pct"] >= 0 else ""
+        pct_lbl = QLabel(f"{sign}{pos['gain_pct']:.1f}%")
+        pct_lbl.setStyleSheet(f"font-size: 12px; color: {gain_color_hex};")
+        pct_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
+        pct_lbl.setFixedWidth(64)
+
+        val_lbl = QLabel(f"${pos['current_value']:,.0f}")
+        val_lbl.setStyleSheet("font-size: 12px; color: #aaaaaa;")
+        val_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
+        val_lbl.setFixedWidth(72)
+
+        layout.addWidget(dot)
+        layout.addWidget(sym)
+        layout.addStretch()
+        layout.addWidget(pct_lbl)
+        layout.addWidget(val_lbl)
+
+        self._apply_style()
+
+    def set_highlighted(self, highlighted: bool):
+        if self._highlighted != highlighted:
+            self._highlighted = highlighted
+            self._apply_style()
+
+    def _apply_style(self):
+        if self._highlighted:
+            r, g, b = self._color.red(), self._color.green(), self._color.blue()
+            self.setStyleSheet(f"background: rgba({r},{g},{b},35); border-radius: 4px;")
+        else:
+            self.setStyleSheet("")
+
+    def enterEvent(self, event):
+        self.hover_enter.emit(self._idx)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self.hover_leave.emit()
+        super().leaveEvent(event)
+
+
+class _LegendWidget(QWidget):
+    def __init__(self, positions, colors, parent=None):
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setSpacing(3)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        title = QLabel("Holdings")
+        title.setStyleSheet("font-size: 13px; font-weight: bold; color: #aaaaaa;")
+        layout.addWidget(title)
+
+        self._rows = []
+        for i, (pos, color) in enumerate(zip(positions, colors)):
+            row = _LegendRow(i, pos, color)
+            self._rows.append(row)
+            layout.addWidget(row)
+
+    def set_highlighted(self, idx: int):
+        for i, row in enumerate(self._rows):
+            row.set_highlighted(i == idx)
+
+    @property
+    def rows(self):
+        return self._rows
 
 
 class UserPage(QWidget):
@@ -118,15 +408,25 @@ class UserPage(QWidget):
             empty.setStyleSheet("font-size: 13px; color: #666666;")
             root.addWidget(empty, stretch=1)
         else:
+            colors = [_PIE_COLORS[i % len(_PIE_COLORS)] for i in range(len(positions))]
+            chart = DonutChartWidget(positions, colors)
+            legend = _LegendWidget(positions, colors)
+
+            # Bidirectional hover sync
+            chart.hovered.connect(legend.set_highlighted)
+            for row in legend.rows:
+                row.hover_enter.connect(chart.set_hovered)
+                row.hover_leave.connect(lambda: chart.set_hovered(-1))
+
             body = QHBoxLayout()
             body.setSpacing(36)
             body.setAlignment(Qt.AlignmentFlag.AlignTop)
-            body.addWidget(_build_chart(positions))
+            body.addWidget(chart)
 
             right = QVBoxLayout()
             right.setSpacing(22)
             right.addWidget(_build_stats(positions))
-            right.addWidget(_build_legend(positions))
+            right.addWidget(legend)
             right.addStretch()
             body.addLayout(right, stretch=1)
 
@@ -170,33 +470,6 @@ def _load_positions(cache, csv_path):
         except Exception:
             continue
     return positions
-
-
-def _build_chart(positions):
-    values = [p["current_value"] for p in positions]
-    colors = [_PIE_COLORS[i % len(_PIE_COLORS)] for i in range(len(positions))]
-    total_value = sum(values)
-
-    fig = Figure(figsize=(4.6, 4.6), facecolor="#2a2a2a")
-    ax = fig.add_subplot(111)
-    ax.set_facecolor("#2a2a2a")
-    fig.subplots_adjust(left=0.04, right=0.96, top=0.96, bottom=0.04)
-
-    ax.pie(
-        values,
-        labels=None,
-        colors=colors,
-        wedgeprops={"width": 0.46, "edgecolor": "#2a2a2a", "linewidth": 2},
-        startangle=90,
-    )
-    ax.text(0, 0.10, f"${total_value:,.0f}",
-            ha="center", va="center", fontsize=14, fontweight="bold", color="#dcdcdc")
-    ax.text(0, -0.14, "Total Value",
-            ha="center", va="center", fontsize=9, color="#888888")
-
-    canvas = FigureCanvas(fig)
-    canvas.setFixedSize(300, 300)
-    return canvas
 
 
 def _build_stats(positions):
@@ -244,50 +517,5 @@ def _build_stats(positions):
         gain_color,
     )
     _row("Avg Daily Change", f"{daily_sign}{abs(avg_daily):.3f}%", daily_color)
-
-    return widget
-
-
-def _build_legend(positions):
-    colors = [_PIE_COLORS[i % len(_PIE_COLORS)] for i in range(len(positions))]
-
-    widget = QWidget()
-    layout = QVBoxLayout(widget)
-    layout.setSpacing(7)
-    layout.setContentsMargins(0, 0, 0, 0)
-
-    title = QLabel("Holdings")
-    title.setStyleSheet("font-size: 13px; font-weight: bold; color: #aaaaaa;")
-    layout.addWidget(title)
-
-    for pos, color in zip(positions, colors):
-        row = QHBoxLayout()
-        row.setSpacing(8)
-
-        dot = QLabel("●")
-        dot.setStyleSheet(f"color: {color}; font-size: 14px;")
-        dot.setFixedWidth(16)
-
-        sym = QLabel(pos["symbol"])
-        sym.setStyleSheet("font-size: 12px; font-weight: bold;")
-
-        gain_color = "#00cc66" if pos["gain_pct"] >= 0 else "#ff4444"
-        sign = "+" if pos["gain_pct"] >= 0 else ""
-        pct = QLabel(f"{sign}{pos['gain_pct']:.1f}%")
-        pct.setStyleSheet(f"font-size: 12px; color: {gain_color};")
-        pct.setAlignment(Qt.AlignmentFlag.AlignRight)
-        pct.setFixedWidth(64)
-
-        val = QLabel(f"${pos['current_value']:,.0f}")
-        val.setStyleSheet("font-size: 12px; color: #aaaaaa;")
-        val.setAlignment(Qt.AlignmentFlag.AlignRight)
-        val.setFixedWidth(72)
-
-        row.addWidget(dot)
-        row.addWidget(sym)
-        row.addStretch()
-        row.addWidget(pct)
-        row.addWidget(val)
-        layout.addLayout(row)
 
     return widget
