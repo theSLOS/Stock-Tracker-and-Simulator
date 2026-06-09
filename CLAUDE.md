@@ -35,13 +35,16 @@ requirements.txt
 .env                           # ANTHROPIC_API_KEY + FINNHUB_API_KEY (gitignored)
 
 ui/                            # All PyQt6 UI components
-    main_window.py             # MainWindow (QMainWindow) + StockFetchWorker + apply_dark_theme() — thin coordinator, owns workers only
-    info_panel.py              # InfoPanel (QWidget) — left panel: header, tabbed stats/insider trades/prediction/AI
-    chart_panel.py             # ChartPanel (QWidget) — right panel: stock selector combo, chart, date range, indicators
-    stock_chart.py             # StockChart (QWidget) — self-contained chart, tooltip, indicators, prediction overlay
+    mainwindow/                # Everything that belongs to the main app window
+        main_window.py         # MainWindow (QMainWindow) + StockFetchWorker + apply_dark_theme() — thin coordinator, owns workers only
+        info_panel.py          # InfoPanel (QWidget) — left panel: header, tabbed stats/insider trades/prediction/AI/portfolio
+        chart_panel.py         # ChartPanel (QWidget) — right panel: stock selector combo, chart, date range, indicators
+        stock_chart.py         # StockChart (QWidget) — self-contained chart, tooltip, indicators, prediction overlay
+        ai_analysis_dialog.py  # AIAnalysisDialog (QDialog) — score gauge, summary, pros/cons, data-used toggle, cached timestamp
+        settings_dialog.py     # UserSettingsDialog (QDialog) — edit profile (email, phone), theme toggle, change password
     login_page.py              # LoginDialog (QDialog)
     register_page.py           # RegisterDialog (QDialog)
-    ai_analysis_dialog.py      # AIAnalysisDialog (QDialog) — score gauge, summary, pros/cons, data-used toggle, cached timestamp
+    theme.py                   # apply_palette(), get_tokens() — shared theme utility used by both login and main window
 
 core/                          # Business logic, data, background workers
     stock_handler.py           # yfinance download, add_new_stock(), calculate_SMA/EMA()
@@ -76,7 +79,8 @@ Users/
 ### Key design decisions
 - **Cache stores only filenames** (`AAPL.csv`), not absolute paths. Full path is always reconstructed as `os.path.join(csv_path, filename)` at runtime. This makes the project portable across machines.
 - **`StockChart` is fully self-contained** — `ChartPanel` calls `set_data()`, `toggle_indicator()`, `set_prediction()`, `clear()`. All pyqtgraph state lives inside `StockChart`.
-- **Panel separation** — `InfoPanel` owns everything on the left (labels, tabs, senate worker). `ChartPanel` owns everything on the right (combo, chart, buttons). `MainWindow` is a thin coordinator: it connects their signals, owns the three background workers, and reads/writes the cache.
+- **Panel separation** — `InfoPanel` owns everything on the left (labels, tabs, senate worker, portfolio state). `ChartPanel` owns everything on the right (combo, chart, buttons). `MainWindow` is a thin coordinator: it connects their signals, owns the three background workers, and reads/writes the cache.
+- **`ui/mainwindow/` package** — all files that compose the main window live here and use relative imports (`from .info_panel import InfoPanel`). Pre-login UI (`login_page.py`, `register_page.py`) and shared utilities (`theme.py`) stay directly in `ui/`. `main.py` imports from `ui.mainwindow.main_window`.
 - **Workers are QThreads** — `StockFetchWorker`, `PredictionWorker`, `AIAnalysisWorker`, and `SenateWorker` all emit `finished` and `error` signals. Never block the UI thread.
 - **AI analysis is cached per-stock per-user** for 24 hours inside the existing cache file. The button checks the cache first; only calls the API if the result is stale or missing.
 
@@ -84,9 +88,18 @@ Users/
 Always visible at the top:
 - Symbol + name + price + day change
 
-Two tabs below:
+Three tabs below:
 - **Info tab**: Statistics (1M High/Low, 52W High/Low, Avg Vol 30d) + scrollable Insider Trades list
 - **Analysis tab**: Prediction section (button, predicted price, range, BUY/HOLD/SELL signal) + AI Analysis section (button, score, sentiment label, summary)
+- **Portfolio tab**: Simulated position entry form (shares, cost/share auto-filled with current price, date auto-filled with today, optional sell target) + Performance section (purchased date, current price, total cost, value now, % change since purchase, sell target with distance-to-target %). Save and Clear buttons persist data to cache.
+
+### User Settings (`UserSettingsDialog`)
+Opened via **User → Settings** in the menu bar. Lets the logged-in user:
+- Edit profile fields: email, phone (stored in `profile.json`)
+- Toggle theme: Dark / Light (applies immediately to the running app)
+- Change password (requires current password; validates confirmation match)
+
+Changes are written to `profile.json` via `user_manager.save_user_profile()`.
 
 ### Indicators
 Registered on `StockChart` at startup in `ChartPanel.__init__`:
@@ -139,12 +152,18 @@ Toggle buttons live in `ChartPanel` and call `self._chart.toggle_indicator(key, 
             "summary": "Apple's iPhone supercycle narrative...",
             "pros": ["Strong earnings growth", "..."],
             "cons": ["High valuation", "..."]
+        },
+        "portfolio": {
+            "shares": 10,
+            "cost_per_share": 182.50,
+            "purchase_date": "2025-01-15",
+            "sell_target": 220.00
         }
     }
 }
 ```
 
-`dfpath` is **filename only** — always join with `csv_path` to get the full path. `ai_analysis` is optional; absent if the user has never run analysis for that stock. `summary` may be absent in old cached entries (pre-feature); the UI handles this gracefully.
+`dfpath` is **filename only** — always join with `csv_path` to get the full path. `ai_analysis` is optional; absent if the user has never run analysis for that stock. `summary` may be absent in old cached entries (pre-feature); the UI handles this gracefully. `portfolio` is optional; absent if the user has not recorded a position for that stock. `sell_target` inside `portfolio` is also optional.
 
 ---
 
@@ -154,6 +173,8 @@ Toggle buttons live in `ChartPanel` and call `self._chart.toggle_indicator(key, 
 {
     "username": "user3",
     "password": "password",
+    "email": "user@example.com",
+    "phone": "555-1234",
     "preferences": {
         "theme": "dark",
         "default_stock": "AAPL"
@@ -161,7 +182,7 @@ Toggle buttons live in `ChartPanel` and call `self._chart.toggle_indicator(key, 
 }
 ```
 
-Profile files **are** committed to git (no secrets beyond plaintext passwords — this is a local desktop app). Cache and CSV files are gitignored.
+`email` and `phone` are optional fields added via the Settings dialog; absent in profiles created before the settings feature. Profile files **are** committed to git (no secrets beyond plaintext passwords — this is a local desktop app). Cache and CSV files are gitignored.
 
 ---
 

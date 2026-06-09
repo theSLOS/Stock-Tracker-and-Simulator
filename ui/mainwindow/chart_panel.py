@@ -1,5 +1,5 @@
 from core import stock_handler
-from ui.stock_chart import StockChart
+from .stock_chart import StockChart
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QComboBox

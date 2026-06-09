@@ -4,8 +4,8 @@ import pandas as pd
 
 from core import caching
 from core.prediction_worker import PredictionWorker
-from ui.info_panel import InfoPanel
-from ui.chart_panel import ChartPanel
+from .info_panel import InfoPanel
+from .chart_panel import ChartPanel
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
@@ -101,7 +101,7 @@ class MainWindow(QMainWindow):
                 self._worker.start()
 
     def open_settings(self):
-        from ui.settings_dialog import UserSettingsDialog
+        from .settings_dialog import UserSettingsDialog
         old_theme = self.user_profile.get("preferences", {}).get("theme", "dark")
         dialog = UserSettingsDialog(self.user_profile, self)
         if dialog.exec():
@@ -173,7 +173,7 @@ class MainWindow(QMainWindow):
     def run_ai_analysis(self):
         if self.df.empty:
             return
-        from ui.ai_analysis_dialog import AIAnalysisDialog
+        from .ai_analysis_dialog import AIAnalysisDialog
         from core.ai_analysis_worker import AIAnalysisWorker
         symbol = self.chart_panel.current_symbol()
         info = self.cache.get_stock_data(symbol)

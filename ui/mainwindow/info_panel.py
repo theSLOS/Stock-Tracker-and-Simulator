@@ -335,7 +335,7 @@ class InfoPanel(QWidget):
         self._fetch_senate_trades(symbol)
 
     def set_ai_result(self, result):
-        from ui.ai_analysis_dialog import _score_color, _score_description
+        from .ai_analysis_dialog import _score_color, _score_description
         score = result.get("score", 0)
         color = _score_color(score)
         self._ai_score_label.setText(f"{score:+d}")

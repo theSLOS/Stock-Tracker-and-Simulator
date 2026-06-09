@@ -5,7 +5,7 @@ import argparse
 from PyQt6.QtWidgets import QApplication, QDialog
 
 from ui.login_page import LoginDialog
-from ui.main_window import MainWindow, apply_dark_theme, apply_light_theme
+from ui.mainwindow.main_window import MainWindow, apply_dark_theme, apply_light_theme
 from core import caching, user_manager
 import os; print(os.getenv("ANTHROPIC_API_KEY"))
 
