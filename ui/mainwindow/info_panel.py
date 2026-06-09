@@ -1,5 +1,6 @@
 import pandas as pd
 
+from PyQt6.QtGui import QColor, QFont, QPainter
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFrame, QScrollArea, QTabWidget, QLineEdit
@@ -7,11 +8,56 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 
 
+class _MiniAvatar(QWidget):
+    def __init__(self, initial, size=28, parent=None):
+        super().__init__(parent)
+        self._initial = initial
+        self.setFixedSize(size, size)
+        self._size = size
+
+    def paintEvent(self, _event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor("#2a82da"))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawEllipse(0, 0, self._size, self._size)
+        font = QFont()
+        font.setPixelSize(int(self._size * 0.42))
+        font.setBold(True)
+        p.setFont(font)
+        p.setPen(QColor("#ffffff"))
+        p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self._initial)
+
+
+class _ProfileRow(QWidget):
+    clicked = pyqtSignal()
+
+    def __init__(self, initial, username, parent=None):
+        super().__init__(parent)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(8)
+        row.addWidget(_MiniAvatar(initial))
+        name = QLabel(username)
+        name.setStyleSheet("font-size: 12px; font-weight: bold;")
+        row.addWidget(name)
+        row.addStretch()
+        chevron = QLabel("›")
+        chevron.setStyleSheet("font-size: 18px; color: #555555;")
+        row.addWidget(chevron)
+
+    def mousePressEvent(self, event):
+        self.clicked.emit()
+        super().mousePressEvent(event)
+
+
 class InfoPanel(QWidget):
     predict_requested = pyqtSignal()
     ai_requested = pyqtSignal()
+    profile_clicked = pyqtSignal()
 
-    def __init__(self, parent=None):
+    def __init__(self, username="", parent=None):
         super().__init__(parent)
         self.setMinimumWidth(200)
         self.setMaximumWidth(280)
@@ -21,8 +67,18 @@ class InfoPanel(QWidget):
         self._cache = None
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 24, 20, 24)
+        layout.setContentsMargins(20, 16, 20, 24)
         layout.setSpacing(4)
+
+        initial = username[0].upper() if username else "?"
+        profile_row = _ProfileRow(initial, username)
+        profile_row.clicked.connect(self.profile_clicked)
+        layout.addWidget(profile_row)
+
+        profile_sep = QFrame()
+        profile_sep.setFrameShape(QFrame.Shape.HLine)
+        profile_sep.setStyleSheet("color: #3a3a3a; margin-top: 6px; margin-bottom: 10px;")
+        layout.addWidget(profile_sep)
 
         self._symbol_label = QLabel("—")
         self._symbol_label.setStyleSheet("font-size: 26px; font-weight: bold;")

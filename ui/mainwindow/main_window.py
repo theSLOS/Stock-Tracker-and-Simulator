@@ -9,10 +9,9 @@ from .chart_panel import ChartPanel
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
-    QHBoxLayout, QMessageBox, QInputDialog
+    QHBoxLayout, QMessageBox, QInputDialog, QStackedWidget
 )
 from PyQt6.QtCore import QThread, pyqtSignal
-from PyQt6.QtGui import QAction
 
 from ui.theme import apply_palette
 
@@ -62,11 +61,14 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"Stock Viewer - User: {self.username}")
         self.resize(1400, 800)
 
-        central = QWidget()
-        main_layout = QHBoxLayout(central)
-        self.setCentralWidget(central)
+        self._stack = QStackedWidget()
+        self.setCentralWidget(self._stack)
 
-        self.info_panel = InfoPanel()
+        stock_widget = QWidget()
+        main_layout = QHBoxLayout(stock_widget)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.info_panel = InfoPanel(username=self.username)
         self.chart_panel = ChartPanel()
 
         startup_theme = user_profile.get("preferences", {}).get("theme", "dark")
@@ -75,18 +77,15 @@ class MainWindow(QMainWindow):
 
         self.info_panel.predict_requested.connect(self.run_prediction)
         self.info_panel.ai_requested.connect(self.run_ai_analysis)
+        self.info_panel.profile_clicked.connect(self.open_portfolio)
         self.chart_panel.stock_changed.connect(self.load_stock)
         self.chart_panel.add_stock_requested.connect(self.add_new_stock_dialog)
         self.chart_panel.delete_stock_requested.connect(self.on_delete_stock)
 
         main_layout.addWidget(self.info_panel)
         main_layout.addWidget(self.chart_panel, stretch=1)
+        self._stack.addWidget(stock_widget)
 
-        menu_bar = self.menuBar()
-        user_menu = menu_bar.addMenu("User")
-        settings_action = QAction("Settings", self)
-        settings_action.triggered.connect(self.open_settings)
-        user_menu.addAction(settings_action)
 
         self.chart_panel.populate_stocks(self.cache.all_stocks())
         if len(self.cache.list_stocks()) == 0:
@@ -99,6 +98,18 @@ class MainWindow(QMainWindow):
                 self._worker.finished.connect(self._on_worker_finished)
                 self._worker.error.connect(self._on_worker_error)
                 self._worker.start()
+
+    def open_portfolio(self):
+        from .portfolio_page import UserPage
+        if self._stack.count() > 1:
+            old = self._stack.widget(1)
+            self._stack.removeWidget(old)
+            old.deleteLater()
+        page = UserPage(self.cache, self.csv_path, self.user_profile, self)
+        page.back_requested.connect(lambda: self._stack.setCurrentIndex(0))
+        page.settings_requested.connect(self.open_settings)
+        self._stack.addWidget(page)
+        self._stack.setCurrentIndex(1)
 
     def open_settings(self):
         from .settings_dialog import UserSettingsDialog
