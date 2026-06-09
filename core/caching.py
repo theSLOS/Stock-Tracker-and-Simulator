@@ -104,6 +104,25 @@ class CacheManager:
             return False
         return (dt.now() - dt.fromisoformat(timestamp_str)).total_seconds() < hours * 3600
 
+    def get_portfolio(self, symbol: str):
+        entry = self.data.get(symbol)
+        if entry is None:
+            return None
+        return entry.get('portfolio')
+
+    def set_portfolio(self, symbol: str, portfolio: dict):
+        entry = self.data.get(symbol)
+        if entry is None:
+            return
+        entry['portfolio'] = portfolio
+        self.save_cache()
+
+    def clear_portfolio(self, symbol: str):
+        entry = self.data.get(symbol)
+        if entry and 'portfolio' in entry:
+            del entry['portfolio']
+            self.save_cache()
+
     def display_cache(self):
         import json
         print(json.dumps(self.data, indent=4))

@@ -2,7 +2,7 @@ import pandas as pd
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QFrame, QScrollArea, QTabWidget
+    QFrame, QScrollArea, QTabWidget, QLineEdit
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
@@ -16,6 +16,9 @@ class InfoPanel(QWidget):
         self.setMinimumWidth(200)
         self.setMaximumWidth(280)
         self._senate_worker = None
+        self._current_symbol = None
+        self._current_price = None
+        self._cache = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 24, 20, 24)
@@ -42,6 +45,7 @@ class InfoPanel(QWidget):
         tabs.setDocumentMode(True)
         tabs.addTab(self._build_info_tab(), "Info")
         tabs.addTab(self._build_analysis_tab(), "Analysis")
+        tabs.addTab(self._build_portfolio_tab(), "Portfolio")
 
         layout.addWidget(self._symbol_label)
         layout.addWidget(self._name_label)
@@ -173,6 +177,84 @@ class InfoPanel(QWidget):
         layout.addStretch()
         return tab
 
+    def _build_portfolio_tab(self):
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(4, 12, 4, 8)
+        layout.setSpacing(6)
+
+        pos_title = QLabel("My Position")
+        pos_title.setStyleSheet("font-size: 12px; font-weight: bold; color: #aaaaaa;")
+        layout.addWidget(pos_title)
+
+        def _input_row(label_text, placeholder=""):
+            w = QWidget()
+            row = QHBoxLayout(w)
+            row.setContentsMargins(0, 2, 0, 2)
+            lbl = QLabel(label_text)
+            lbl.setStyleSheet("font-size: 11px; color: #888888;")
+            lbl.setFixedWidth(74)
+            inp = QLineEdit()
+            inp.setPlaceholderText(placeholder)
+            inp.setStyleSheet("font-size: 11px;")
+            row.addWidget(lbl)
+            row.addWidget(inp)
+            return w, inp
+
+        shares_row, self._port_shares = _input_row("Shares", "e.g. 10")
+        cost_row,   self._port_cost   = _input_row("Cost/Share", "e.g. 150.00")
+        date_row,   self._port_date   = _input_row("Date", "YYYY-MM-DD")
+        target_row, self._port_target = _input_row("Sell Target", "optional")
+
+        self._port_save_btn = QPushButton("Save Position")
+        self._port_save_btn.setEnabled(False)
+        self._port_save_btn.clicked.connect(self._on_save_portfolio)
+
+        layout.addWidget(shares_row)
+        layout.addWidget(cost_row)
+        layout.addWidget(date_row)
+        layout.addWidget(target_row)
+        layout.addSpacing(4)
+        layout.addWidget(self._port_save_btn)
+
+        perf_sep = QFrame()
+        perf_sep.setFrameShape(QFrame.Shape.HLine)
+        perf_sep.setStyleSheet("color: #555555; margin-top: 8px; margin-bottom: 4px;")
+
+        perf_title = QLabel("Performance")
+        perf_title.setStyleSheet("font-size: 12px; font-weight: bold; color: #aaaaaa;")
+
+        purchased_row,   self._port_purchased   = self._stat_row("Purchased")
+        curr_row,        self._port_curr_val     = self._stat_row("Current Price")
+        cost_total_row,  self._port_cost_total   = self._stat_row("Total Cost")
+        value_row,       self._port_value        = self._stat_row("Value Now")
+        change_row,      self._port_change       = self._stat_row("Change")
+        target_perf_row, self._port_target_perf  = self._stat_row("Sell Target")
+
+        self._port_clear_btn = QPushButton("Clear Position")
+        self._port_clear_btn.clicked.connect(self._on_clear_portfolio)
+
+        self._port_perf_section = QWidget()
+        perf_inner = QVBoxLayout(self._port_perf_section)
+        perf_inner.setContentsMargins(0, 0, 0, 0)
+        perf_inner.setSpacing(4)
+        perf_inner.addWidget(perf_sep)
+        perf_inner.addWidget(perf_title)
+        perf_inner.addWidget(purchased_row)
+        perf_inner.addWidget(curr_row)
+        perf_inner.addWidget(cost_total_row)
+        perf_inner.addWidget(value_row)
+        perf_inner.addWidget(change_row)
+        perf_inner.addWidget(target_perf_row)
+        perf_inner.addSpacing(8)
+        perf_inner.addWidget(self._port_clear_btn)
+
+        self._port_perf_section.hide()
+        layout.addWidget(self._port_perf_section)
+        layout.addStretch()
+
+        return tab
+
     # ------------------------------------------------------------------ public
 
     def update(self, symbol, df, cache):
@@ -192,6 +274,15 @@ class InfoPanel(QWidget):
             for lbl in (self._stat_month_high, self._stat_month_low,
                         self._stat_52w_high, self._stat_52w_low, self._stat_avg_vol):
                 lbl.setText("—")
+            self._port_save_btn.setEnabled(False)
+            self._port_perf_section.hide()
+            for inp in (self._port_shares, self._port_cost, self._port_date, self._port_target):
+                inp.clear()
+            self._port_cost.setPlaceholderText("e.g. 150.00")
+            self._port_date.setPlaceholderText("YYYY-MM-DD")
+            self._current_symbol = None
+            self._current_price = None
+            self._cache = None
             return
 
         info = cache.get_stock_data(symbol)
@@ -227,6 +318,11 @@ class InfoPanel(QWidget):
 
         self._predict_button.setEnabled(True)
         self._ai_button.setEnabled(True)
+        self._port_save_btn.setEnabled(True)
+        self._current_symbol = symbol
+        self._current_price = float(current)
+        self._cache = cache
+        self._refresh_portfolio_tab(cache.get_portfolio(symbol))
 
         cached_ai = cache.get_ai_analysis(symbol)
         if cached_ai and cache.is_ai_analysis_fresh(symbol):
@@ -271,6 +367,106 @@ class InfoPanel(QWidget):
         self._pred_signal_label.setText("")
 
     # ------------------------------------------------------------------ internal
+
+    def _refresh_portfolio_tab(self, portfolio):
+        if portfolio:
+            self._port_shares.setText(str(portfolio.get('shares', '')))
+            self._port_cost.setText(str(portfolio.get('cost_per_share', '')))
+            self._port_date.setText(portfolio.get('purchase_date', ''))
+            target = portfolio.get('sell_target')
+            self._port_target.setText(str(target) if target is not None else '')
+
+            shares = portfolio.get('shares', 0)
+            cost_ps = portfolio.get('cost_per_share', 0)
+            total_cost = shares * cost_ps
+            value = shares * self._current_price
+            gain = value - total_cost
+            gain_pct = (gain / total_cost * 100) if total_cost > 0 else 0
+            color = "#00cc66" if gain >= 0 else "#ff4444"
+
+            self._port_purchased.setText(portfolio.get('purchase_date', '—'))
+            self._port_curr_val.setText(f"${self._current_price:.2f}")
+            self._port_cost_total.setText(f"${total_cost:,.2f}")
+            self._port_value.setText(f"${value:,.2f}")
+            self._port_change.setText(f"{gain_pct:+.1f}%  (${gain:+,.2f})")
+            self._port_change.setStyleSheet(f"font-size: 11px; color: {color}; font-weight: bold;")
+
+            if target is not None:
+                dist_pct = ((target - self._current_price) / self._current_price) * 100
+                t_color = "#ffaa00" if self._current_price < target else "#ff4444"
+                self._port_target_perf.setText(f"${target:,.2f}  ({dist_pct:+.1f}%)")
+                self._port_target_perf.setStyleSheet(f"font-size: 11px; color: {t_color}; font-weight: bold;")
+            else:
+                self._port_target_perf.setText("—")
+                self._port_target_perf.setStyleSheet("font-size: 11px; color: #dddddd; font-weight: bold;")
+
+            self._port_perf_section.show()
+        else:
+            from datetime import datetime
+            self._port_shares.clear()
+            self._port_cost.setText(f"{self._current_price:.2f}" if self._current_price else "")
+            self._port_date.setText(datetime.now().strftime('%Y-%m-%d'))
+            self._port_target.clear()
+            self._port_perf_section.hide()
+
+    def _on_save_portfolio(self):
+        from PyQt6.QtWidgets import QMessageBox
+        from datetime import datetime
+
+        shares_text = self._port_shares.text().strip()
+        cost_text = self._port_cost.text().strip().replace('$', '').replace(',', '')
+        date_text = self._port_date.text().strip()
+        target_text = self._port_target.text().strip().replace('$', '').replace(',', '')
+
+        try:
+            shares = float(shares_text)
+            if shares <= 0:
+                raise ValueError
+        except ValueError:
+            QMessageBox.warning(self, "Invalid Input", "Please enter a valid positive number for shares.")
+            return
+
+        try:
+            cost = float(cost_text)
+            if cost <= 0:
+                raise ValueError
+        except ValueError:
+            QMessageBox.warning(self, "Invalid Input", "Please enter a valid positive number for cost per share.")
+            return
+
+        if not date_text:
+            date_text = datetime.now().strftime('%Y-%m-%d')
+        else:
+            try:
+                datetime.strptime(date_text, '%Y-%m-%d')
+            except ValueError:
+                QMessageBox.warning(self, "Invalid Date", "Please enter the date as YYYY-MM-DD.")
+                return
+
+        portfolio = {'shares': shares, 'cost_per_share': cost, 'purchase_date': date_text}
+
+        if target_text:
+            try:
+                target = float(target_text)
+                if target > 0:
+                    portfolio['sell_target'] = target
+            except ValueError:
+                pass
+
+        if self._cache and self._current_symbol:
+            self._cache.set_portfolio(self._current_symbol, portfolio)
+            self._refresh_portfolio_tab(portfolio)
+
+    def _on_clear_portfolio(self):
+        from PyQt6.QtWidgets import QMessageBox
+        reply = QMessageBox.question(
+            self, "Clear Position",
+            "Remove this position from your portfolio?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes and self._cache and self._current_symbol:
+            self._cache.clear_portfolio(self._current_symbol)
+            self._refresh_portfolio_tab(None)
 
     def _fetch_senate_trades(self, symbol):
         from core.senate_worker import SenateWorker
