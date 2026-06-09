@@ -2,99 +2,158 @@
 
 A desktop stock portfolio viewer and predictor built with Python and PyQt6.
 
+![Python](https://img.shields.io/badge/python-3.10--3.12-blue)
+![PyQt6](https://img.shields.io/badge/UI-PyQt6-informational)
+![License](https://img.shields.io/badge/license-MIT-green)
+
+---
+
 ## Features
 
-- **Multi-user login** — each user has their own portfolio and cached data
-- **Live stock data** — fetches historical price data from Yahoo Finance via `yfinance`
-- **Interactive chart** — gradient price line with a hover tooltip showing date, price, and daily change
+- **Multi-user login** — register or log in; each user has their own portfolio and cached data
+- **Live stock data** — historical price data fetched from Yahoo Finance via `yfinance`
+- **Interactive chart** — gradient price line with hover tooltip; configurable date range (1M / 3M / 6M / 1Y / All)
 - **Technical indicators** — toggle SMA 20, SMA 50, and EMA 20 overlays on the chart
-- **Date range filter** — view 1 month, 3 months, 6 months, 1 year, or all-time data
-- **30-day price prediction** — powered by Meta's Prophet model, with a confidence band drawn on the chart and a BUY / HOLD / SELL signal
-- **AI market analysis** — uses the Claude API to score a stock -10 to +10, with a plain-English summary, pros and cons, and insider trade context; results are cached per-user for 24 hours
-- **Insider trades panel** — shows recent executive and director trades (SEC filings) for the selected stock, sourced from Finnhub
+- **30-day prediction** — Meta's Prophet model draws a confidence band on the chart and emits a BUY / HOLD / SELL signal
+- **AI market analysis** — Claude scores a stock −10 to +10 with a plain-English summary, pros/cons, and insider trade context; results are cached per user for 24 hours
+- **Insider trades panel** — recent SEC insider transactions for the selected stock, sourced from Finnhub
+- **Portfolio tracker** — record positions (shares, cost basis, optional sell target); interactive animated donut chart with per-holding hover detail and gain/loss stats
+- **User settings** — edit profile fields, change password, toggle dark/light theme
+
+---
 
 ## Requirements
 
-- Python 3.10+
-- An **Anthropic API key** (for AI analysis) — `ANTHROPIC_API_KEY=sk-ant-...`
-- A **Finnhub API key** (for insider trades) — `FINNHUB_API_KEY=...` — free account at [finnhub.io](https://finnhub.io), no credit card required
-- See `requirements.txt` for all Python dependencies
+- **Python 3.10–3.12** — Prophet's dependencies are not always compatible with newer Python versions
+- **Anthropic API key** — for AI analysis (`ANTHROPIC_API_KEY`)
+- **Finnhub API key** — for insider trades (`FINNHUB_API_KEY`); free tier at [finnhub.io](https://finnhub.io), no credit card required
+
+Both API keys are optional — all other features work without them.
+
+---
 
 ## Setup
 
-Clone the repository and install dependencies:
+### 1. Clone
 
 ```bash
 git clone https://github.com/ssavory/Stock-App.git
 cd Stock-App
+```
+
+### 2. Create a virtual environment
+
+```bash
+python -m venv venv
+
+# Windows
+venv\Scripts\activate
+
+# macOS / Linux
+source venv/bin/activate
+```
+
+### 3. Install dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
-> **Note:** `prophet` pulls in a number of dependencies (including `cmdstanpy` and `matplotlib`) and may take a minute or two to install. On Windows, you may need to enable long path support first — see [pip's long paths guide](https://pip.pypa.io/warnings/enable-long-paths).
+> **Windows — enable long paths before installing.**
+> `prophet` installs Stan model files with deeply nested paths that exceed Windows' 260-character limit by default.
+> Run this once in an **elevated PowerShell** session, then restart your terminal:
+> ```powershell
+> Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name LongPathsEnabled -Value 1
+> ```
 
-Create a `.env` file in the project root:
+`prophet` also pulls in `cmdstanpy` and `matplotlib` — expect the first install to take a couple of minutes.
+
+### 4. Add API keys
+
+Copy `.env.example` to `.env` and fill in your keys:
+
+```bash
+cp .env.example .env
+```
 
 ```
 ANTHROPIC_API_KEY=sk-ant-...
-FINNHUB_API_KEY=your_finnhub_key
+FINNHUB_API_KEY=your_key_here
 ```
 
-The AI analysis feature requires `ANTHROPIC_API_KEY`. The insider trades panel requires `FINNHUB_API_KEY`. All other features work without either key.
+---
 
-## Running the app
+## Running
 
 ```bash
 python main.py
 ```
 
-On first launch you will be prompted to log in. Use the **New User** button to create an account. Once logged in, your default stock (AAPL) will be fetched automatically if your portfolio is empty.
+On first launch you will be prompted to log in. Register a new account or use one of the test accounts below. AAPL data is fetched automatically when your portfolio is empty.
 
-To skip the login dialog and auto-login from the terminal, pass `--user` and `--password`:
+**Skip the login prompt** by passing credentials directly:
 
 ```bash
 python main.py --user admin --password password
+python main.py -u admin -p password        # short flags
 ```
 
-Short flags also work:
+If credentials are invalid, the app falls back to the normal login dialog.
 
-```bash
-python main.py -u admin -p password
-```
+### Test accounts
 
-If the credentials are invalid the app falls back to the normal login dialog.
+All test accounts use the password `password`.
+
+| Username | Notes |
+|---|---|
+| `admin` | AAPL cached |
+| `user3` | AAPL, NVDA, AMZN, GOOG, TSLA in portfolio |
+| `user2` | AAPL cached |
+| `user1` | Empty — downloads AAPL on first login |
+
+---
 
 ## Project structure
 
 ```
 Stock-App/
-├── main.py               # Entry point
+├── main.py                      # Entry point — wires login → main window
 ├── requirements.txt
-├── .env                  # API keys (not committed)
-├── ui/                   # All UI components
-│   ├── main_window.py        # Main window — wires panels, owns background workers
-│   ├── info_panel.py         # Left panel — stock header, stats tabs, insider trades, AI/prediction
-│   ├── chart_panel.py        # Right panel — stock selector, chart, date range, indicators
-│   ├── stock_chart.py        # Self-contained chart widget (pyqtgraph)
-│   ├── login_page.py         # Login dialog
-│   ├── register_page.py      # New user registration dialog
-│   └── ai_analysis_dialog.py # AI analysis results dialog
-├── core/                 # Business logic and data layer
-│   ├── stock_handler.py      # yfinance data fetching and indicator calculations
-│   ├── caching.py            # Per-user stock cache manager (also stores AI analysis)
-│   ├── user_manager.py       # User profile read/write
-│   ├── stock_model.py        # StockPackage data model
-│   ├── prediction_worker.py  # Background thread running the Prophet model
-│   ├── ai_analysis_worker.py # Background thread running the Claude AI analysis
-│   └── senate_worker.py      # Background thread fetching insider trades from Finnhub
+├── .env                         # API keys (not committed)
+│
+├── ui/
+│   ├── mainwindow/              # Main app window (all files use relative imports)
+│   │   ├── main_window.py       # Thin coordinator — owns workers, connects panel signals
+│   │   ├── info_panel.py        # Left panel — stock header, stats, insider trades, AI, portfolio tab
+│   │   ├── chart_panel.py       # Right panel — stock selector, chart, date range, indicators
+│   │   ├── stock_chart.py       # Self-contained pyqtgraph chart widget
+│   │   ├── portfolio_page.py    # Full-window portfolio page with interactive donut chart
+│   │   ├── ai_analysis_dialog.py
+│   │   └── settings_dialog.py
+│   ├── login_page.py
+│   ├── register_page.py
+│   └── theme.py                 # Shared dark/light palette utility
+│
+├── core/
+│   ├── stock_handler.py         # yfinance fetching, SMA/EMA calculations
+│   ├── caching.py               # Per-user cache manager (stock data + AI results + portfolio)
+│   ├── user_manager.py          # Profile read/write
+│   ├── stock_model.py           # StockPackage dataclass
+│   ├── prediction_worker.py     # QThread — Prophet 30-day forecast
+│   ├── ai_analysis_worker.py    # QThread — Claude API market analysis
+│   └── senate_worker.py         # QThread — Finnhub insider trades
+│
 └── Users/
     └── <username>/
-        ├── profile.json  # User settings and preferences
-        ├── cache         # Cached stock metadata + AI analysis results (gitignored)
-        └── csvFiles/     # Downloaded price CSVs (gitignored)
+        ├── profile.json         # Committed — preferences and hashed credentials
+        ├── cache                # Gitignored — stock metadata, AI results, portfolio positions
+        └── csvFiles/            # Gitignored — downloaded price CSVs (rebuilt on first use)
 ```
+
+---
 
 ## Notes
 
-- Stock CSVs and cache files are **not committed to git** — they are downloaded fresh on each new machine
-- AI analysis results are cached inside the user's cache file for 24 hours to avoid redundant API calls
-- The `.env` file sets `ANTHROPIC_API_KEY`, `FINNHUB_API_KEY`, and optional `CSV_PATH`/`CACHE_PATH` overrides
+- Stock CSVs and cache files are not committed to the repo — they are downloaded and rebuilt automatically on first use on any machine
+- AI analysis results are cached per user for 24 hours to avoid redundant API calls
+- The portfolio donut chart uses PyQt6's `QPainter` directly — `matplotlib` is only present as a transitive dependency of Prophet and is not used by the UI
