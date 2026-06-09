@@ -116,6 +116,9 @@ class ChartPanel(QWidget):
     def clear_prediction(self):
         self._chart.clear_prediction()
 
+    def apply_theme(self, theme_name: str):
+        self._chart.apply_theme(theme_name)
+
     def set_prediction(self, forecast, last_date):
         return self._chart.set_prediction(forecast, last_date)
 

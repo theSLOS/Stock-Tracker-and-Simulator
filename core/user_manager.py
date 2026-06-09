@@ -39,3 +39,9 @@ def get_user_profile(username):
     profile_path = os.path.join(get_user_dir(username), 'profile.json')
     with open(profile_path) as f:
         return json.load(f)
+
+
+def save_user_profile(username, profile):
+    profile_path = os.path.join(get_user_dir(username), 'profile.json')
+    with open(profile_path, 'w') as f:
+        json.dump(profile, f, indent=4)

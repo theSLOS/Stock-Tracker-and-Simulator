@@ -8,6 +8,8 @@ from PyQt6.QtGui import QLinearGradient, QColor, QBrush
 
 import pyqtgraph as pg
 
+from ui.theme import get_tokens
+
 
 class _DateAxis(pg.AxisItem):
     def __init__(self, *args, **kwargs):
@@ -30,26 +32,24 @@ class StockChart(QWidget):
         self._indicators = {}   # key -> {func, color, name, curve}
         self._pred_curves = []
 
+        t = get_tokens("dark")
+
         # --- plot widget
-        date_axis = _DateAxis(orientation='bottom')
-        date_axis.setPen(pg.mkPen('#3a3a5c'))
-        date_axis.setTextPen(pg.mkPen('#888'))
-        self.plot_widget = pg.PlotWidget(axisItems={'bottom': date_axis})
-        self.plot_widget.setBackground('#1a1a2e')
-        self.plot_widget.showGrid(x=True, y=True, alpha=0.12)
-        left_ax = self.plot_widget.getPlotItem().getAxis('left')
-        left_ax.setPen(pg.mkPen('#3a3a5c'))
-        left_ax.setTextPen(pg.mkPen('#888'))
+        self._date_axis = _DateAxis(orientation='bottom')
+        self._date_axis.setPen(pg.mkPen(t["chart_axis_pen"]))
+        self._date_axis.setTextPen(pg.mkPen(t["chart_text_pen"]))
+        self.plot_widget = pg.PlotWidget(axisItems={'bottom': self._date_axis})
+        self.plot_widget.setBackground(t["chart_bg"])
+        self.plot_widget.showGrid(x=True, y=True, alpha=t["chart_grid_alpha"])
+        self._left_ax = self.plot_widget.getPlotItem().getAxis('left')
+        self._left_ax.setPen(pg.mkPen(t["chart_axis_pen"]))
+        self._left_ax.setTextPen(pg.mkPen(t["chart_text_pen"]))
 
         # gradient fill under price line
-        gradient = QLinearGradient(0, 0, 0, 1)
-        gradient.setCoordinateMode(QLinearGradient.CoordinateMode.ObjectBoundingMode)
-        gradient.setColorAt(0, QColor(100, 149, 237, 120))
-        gradient.setColorAt(1, QColor(100, 149, 237, 0))
         self._price_curve = pg.PlotCurveItem(
-            pen=pg.mkPen('#6495ED', width=2),
+            pen=pg.mkPen(t["price_line"], width=2),
             fillLevel=0,
-            brush=QBrush(gradient),
+            brush=QBrush(self._make_gradient(t)),
         )
         self.plot_widget.addItem(self._price_curve)
 
@@ -59,12 +59,12 @@ class StockChart(QWidget):
         # crosshair
         self._vline = pg.InfiniteLine(
             angle=90, movable=False,
-            pen=pg.mkPen('#555', width=1, style=Qt.PenStyle.DashLine),
+            pen=pg.mkPen(t["crosshair_pen"], width=1, style=Qt.PenStyle.DashLine),
         )
         self.plot_widget.addItem(self._vline, ignoreBounds=True)
 
         self._dot = pg.ScatterPlotItem(
-            size=9, brush=pg.mkBrush('#6495ED'), pen=pg.mkPen('white', width=1.5)
+            size=9, brush=pg.mkBrush(t["dot_brush"]), pen=pg.mkPen(t["dot_pen"], width=1.5)
         )
         self.plot_widget.addItem(self._dot, ignoreBounds=True)
 
@@ -73,23 +73,14 @@ class StockChart(QWidget):
 
         # floating tooltip overlay
         self._tooltip = QLabel(self)
-        self._tooltip.setStyleSheet("""
-            QLabel {
-                background: rgba(20, 20, 35, 210);
-                color: #eeeeee;
-                border: 1px solid #3a3a5c;
-                border-radius: 6px;
-                padding: 7px 11px;
-                font-size: 12px;
-            }
-        """)
+        self._tooltip.setStyleSheet(t["tooltip_style"])
         self._tooltip.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self._tooltip.hide()
 
         # empty state
         empty = QLabel('No stocks — click "+ Add Stock" to get started')
         empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        empty.setStyleSheet('color: #666; font-size: 16px;')
+        empty.setStyleSheet(t["empty_label_style"])
         self._empty_widget = empty
 
         self._stack = QStackedWidget()
@@ -101,6 +92,22 @@ class StockChart(QWidget):
         layout.addWidget(self._stack)
 
     # ------------------------------------------------------------------ public
+
+    def apply_theme(self, theme_name: str):
+        t = get_tokens(theme_name)
+        self.plot_widget.setBackground(t["chart_bg"])
+        self._date_axis.setPen(pg.mkPen(t["chart_axis_pen"]))
+        self._date_axis.setTextPen(pg.mkPen(t["chart_text_pen"]))
+        self._left_ax.setPen(pg.mkPen(t["chart_axis_pen"]))
+        self._left_ax.setTextPen(pg.mkPen(t["chart_text_pen"]))
+        self.plot_widget.getPlotItem().getViewBox().update()
+        self._price_curve.setPen(pg.mkPen(t["price_line"], width=2))
+        self._price_curve.setBrush(QBrush(self._make_gradient(t)))
+        self._vline.setPen(pg.mkPen(t["crosshair_pen"], width=1, style=Qt.PenStyle.DashLine))
+        self._dot.setBrush(pg.mkBrush(t["dot_brush"]))
+        self._dot.setPen(pg.mkPen(t["dot_pen"], width=1.5))
+        self._tooltip.setStyleSheet(t["tooltip_style"])
+        self._empty_widget.setStyleSheet(t["empty_label_style"])
 
     def set_data(self, df: pd.DataFrame):
         self.df = df
@@ -171,6 +178,14 @@ class StockChart(QWidget):
         self._stack.setCurrentWidget(self._empty_widget)
 
     # ------------------------------------------------------------------ internal
+
+    @staticmethod
+    def _make_gradient(tokens: dict) -> QLinearGradient:
+        g = QLinearGradient(0, 0, 0, 1)
+        g.setCoordinateMode(QLinearGradient.CoordinateMode.ObjectBoundingMode)
+        g.setColorAt(0, QColor(*tokens["price_fill_top"]))
+        g.setColorAt(1, QColor(*tokens["price_fill_bottom"]))
+        return g
 
     def _redraw(self):
         if self.df.empty:

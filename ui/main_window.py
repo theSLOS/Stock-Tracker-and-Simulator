@@ -12,7 +12,9 @@ from PyQt6.QtWidgets import (
     QHBoxLayout, QMessageBox, QInputDialog
 )
 from PyQt6.QtCore import QThread, pyqtSignal
-from PyQt6.QtGui import QPalette, QColor
+from PyQt6.QtGui import QAction
+
+from ui.theme import apply_palette
 
 
 class StockFetchWorker(QThread):
@@ -67,6 +69,10 @@ class MainWindow(QMainWindow):
         self.info_panel = InfoPanel()
         self.chart_panel = ChartPanel()
 
+        startup_theme = user_profile.get("preferences", {}).get("theme", "dark")
+        if startup_theme != "dark":
+            self.chart_panel.apply_theme(startup_theme)
+
         self.info_panel.predict_requested.connect(self.run_prediction)
         self.info_panel.ai_requested.connect(self.run_ai_analysis)
         self.chart_panel.stock_changed.connect(self.load_stock)
@@ -75,6 +81,12 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(self.info_panel)
         main_layout.addWidget(self.chart_panel, stretch=1)
+
+        menu_bar = self.menuBar()
+        user_menu = menu_bar.addMenu("User")
+        settings_action = QAction("Settings", self)
+        settings_action.triggered.connect(self.open_settings)
+        user_menu.addAction(settings_action)
 
         self.chart_panel.populate_stocks(self.cache.all_stocks())
         if len(self.cache.list_stocks()) == 0:
@@ -87,6 +99,16 @@ class MainWindow(QMainWindow):
                 self._worker.finished.connect(self._on_worker_finished)
                 self._worker.error.connect(self._on_worker_error)
                 self._worker.start()
+
+    def open_settings(self):
+        from ui.settings_dialog import UserSettingsDialog
+        old_theme = self.user_profile.get("preferences", {}).get("theme", "dark")
+        dialog = UserSettingsDialog(self.user_profile, self)
+        if dialog.exec():
+            new_theme = self.user_profile.get("preferences", {}).get("theme", "dark")
+            if new_theme != old_theme:
+                apply_palette(QApplication.instance(), new_theme)
+                self.chart_panel.apply_theme(new_theme)
 
     def add_new_stock_dialog(self):
         symbol, ok = QInputDialog.getText(self, "Add New Stock", "Enter stock symbol (e.g., AAPL):")
@@ -229,18 +251,8 @@ class MainWindow(QMainWindow):
 
 
 def apply_dark_theme(app):
-    app.setStyle("Fusion")
-    dark = QPalette()
-    dark.setColor(QPalette.ColorRole.Window, QColor(53, 53, 53))
-    dark.setColor(QPalette.ColorRole.WindowText, QColor(220, 220, 220))
-    dark.setColor(QPalette.ColorRole.Base, QColor(35, 35, 35))
-    dark.setColor(QPalette.ColorRole.AlternateBase, QColor(53, 53, 53))
-    dark.setColor(QPalette.ColorRole.ToolTipBase, QColor(220, 220, 220))
-    dark.setColor(QPalette.ColorRole.ToolTipText, QColor(220, 220, 220))
-    dark.setColor(QPalette.ColorRole.Text, QColor(220, 220, 220))
-    dark.setColor(QPalette.ColorRole.Button, QColor(53, 53, 53))
-    dark.setColor(QPalette.ColorRole.ButtonText, QColor(220, 220, 220))
-    dark.setColor(QPalette.ColorRole.BrightText, QColor(255, 0, 0))
-    dark.setColor(QPalette.ColorRole.Highlight, QColor(42, 130, 218))
-    dark.setColor(QPalette.ColorRole.HighlightedText, QColor(0, 0, 0))
-    app.setPalette(dark)
+    apply_palette(app, "dark")
+
+
+def apply_light_theme(app):
+    apply_palette(app, "light")

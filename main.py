@@ -5,9 +5,9 @@ import argparse
 from PyQt6.QtWidgets import QApplication, QDialog
 
 from ui.login_page import LoginDialog
-from ui.main_window import MainWindow, apply_dark_theme
+from ui.main_window import MainWindow, apply_dark_theme, apply_light_theme
 from core import caching, user_manager
-
+import os; print(os.getenv("ANTHROPIC_API_KEY"))
 
 def _auto_login(username, password):
     users = user_manager.load_users()
@@ -18,6 +18,7 @@ def _auto_login(username, password):
 
 
 def main():
+    
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--user", "-u", default=None)
     parser.add_argument("--password", "-p", default=None)
@@ -51,6 +52,9 @@ def main():
     user_csv_path = os.path.join(user_dir, 'csvFiles')
     user_cache_path = os.path.join(user_dir, 'cache')
     os.makedirs(user_csv_path, exist_ok=True)
+
+    if user_profile.get("preferences", {}).get("theme") == "light":
+        apply_light_theme(app)
 
     cache = caching.CacheManager(user_cache_path)
     window = MainWindow(cache, user_csv_path, user_profile)
