@@ -7,6 +7,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
+from ..theme import get_tokens
+
 
 class _MiniAvatar(QWidget):
     def __init__(self, initial, size=28, parent=None):
@@ -99,6 +101,14 @@ class InfoPanel(QWidget):
         self._current_price = None
         self._cache = None
 
+        self._tokens = get_tokens(theme)
+        # Each entry is (QLabel, base_style_without_color) — rebuilt cleanly on theme change
+        self._labels_secondary = []
+        self._labels_muted = []
+        self._labels_faint = []
+        self._labels_value = []   # primary-color labels that have partial stylesheets
+        self._separators = []  # list of (QFrame, margin_style)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 16, 20, 24)
         layout.setSpacing(4)
@@ -108,27 +118,24 @@ class InfoPanel(QWidget):
         self._profile_row.clicked.connect(self.profile_clicked)
         layout.addWidget(self._profile_row)
 
-        profile_sep = QFrame()
-        profile_sep.setFrameShape(QFrame.Shape.HLine)
-        profile_sep.setStyleSheet("color: #3a3a3a; margin-top: 6px; margin-bottom: 10px;")
-        layout.addWidget(profile_sep)
+        self._profile_sep = QFrame()
+        self._profile_sep.setFrameShape(QFrame.Shape.HLine)
+        layout.addWidget(self._profile_sep)
 
+        t = self._tokens
         self._symbol_label = QLabel("—")
-        self._symbol_label.setStyleSheet("font-size: 26px; font-weight: bold;")
+        self._symbol_label.setStyleSheet(f"font-size: {t['font_symbol']}; font-weight: bold;")
 
         self._name_label = QLabel("")
-        self._name_label.setStyleSheet("font-size: 13px; color: #aaaaaa;")
         self._name_label.setWordWrap(True)
 
         self._price_label = QLabel("—")
-        self._price_label.setStyleSheet("font-size: 32px; font-weight: bold; margin-top: 16px;")
+        self._price_label.setStyleSheet(f"font-size: {t['font_price']}; font-weight: bold; margin-top: 16px;")
 
         self._change_label = QLabel("")
-        self._change_label.setStyleSheet("font-size: 15px;")
 
-        separator = QFrame()
-        separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setStyleSheet("color: #555555; margin-top: 8px; margin-bottom: 4px;")
+        self._main_sep = QFrame()
+        self._main_sep.setFrameShape(QFrame.Shape.HLine)
 
         tabs = QTabWidget()
         tabs.setDocumentMode(True)
@@ -140,31 +147,35 @@ class InfoPanel(QWidget):
         layout.addWidget(self._name_label)
         layout.addWidget(self._price_label)
         layout.addWidget(self._change_label)
-        layout.addWidget(separator)
+        layout.addWidget(self._main_sep)
         layout.addWidget(tabs, stretch=1)
 
+        self._apply_theme_styles(self._tokens)
+
     def _stat_row(self, label_text):
+        t = self._tokens
         w = QWidget()
         row = QHBoxLayout(w)
         row.setContentsMargins(0, 0, 0, 0)
         k = QLabel(label_text)
-        k.setStyleSheet("font-size: 11px; color: #888888;")
+        self._labels_muted.append((k, f"font-size: {t['font_small']};"))
         v = QLabel("—")
-        v.setStyleSheet("font-size: 11px; color: #dddddd; font-weight: bold;")
         v.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self._labels_value.append((v, f"font-size: {t['font_small']}; font-weight: bold;"))
         row.addWidget(k)
         row.addStretch()
         row.addWidget(v)
         return w, v
 
     def _build_info_tab(self):
+        t = self._tokens
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(4, 12, 4, 8)
         layout.setSpacing(6)
 
         stats_title = QLabel("Statistics")
-        stats_title.setStyleSheet("font-size: 12px; font-weight: bold; color: #aaaaaa;")
+        self._labels_secondary.append((stats_title, f"font-size: {t['font_body']}; font-weight: bold;"))
 
         month_high_row, self._stat_month_high = self._stat_row("1M High")
         month_low_row,  self._stat_month_low  = self._stat_row("1M Low")
@@ -174,14 +185,14 @@ class InfoPanel(QWidget):
 
         stats_sep = QFrame()
         stats_sep.setFrameShape(QFrame.Shape.HLine)
-        stats_sep.setStyleSheet("color: #555555; margin-top: 6px; margin-bottom: 6px;")
+        self._separators.append((stats_sep, "margin-top: 6px; margin-bottom: 6px;"))
 
         insider_title = QLabel("Insider Trades")
-        insider_title.setStyleSheet("font-size: 12px; font-weight: bold; color: #aaaaaa;")
+        self._labels_secondary.append((insider_title, f"font-size: {t['font_body']}; font-weight: bold;"))
 
         self._senate_status = QLabel("—")
-        self._senate_status.setStyleSheet("font-size: 11px; color: #666666;")
         self._senate_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._labels_faint.append((self._senate_status, f"font-size: {t['font_small']};"))
 
         self._senate_container = QWidget()
         self._senate_container.setStyleSheet("background: transparent;")
@@ -207,48 +218,44 @@ class InfoPanel(QWidget):
         return tab
 
     def _build_analysis_tab(self):
+        t = self._tokens
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(4, 12, 4, 8)
         layout.setSpacing(4)
 
         pred_title = QLabel("Prediction (30 days)")
-        pred_title.setStyleSheet("font-size: 12px; font-weight: bold; color: #aaaaaa;")
+        self._labels_secondary.append((pred_title, f"font-size: {t['font_body']}; font-weight: bold;"))
 
         self._predict_button = QPushButton("Predict Next Month")
         self._predict_button.clicked.connect(self.predict_requested)
         self._predict_button.setEnabled(False)
 
         self._pred_price_label = QLabel("")
-        self._pred_price_label.setStyleSheet("font-size: 20px; font-weight: bold;")
+        self._pred_price_label.setStyleSheet(f"font-size: {t['font_value']}; font-weight: bold;")
 
         self._pred_range_label = QLabel("")
-        self._pred_range_label.setStyleSheet("font-size: 11px; color: #aaaaaa;")
         self._pred_range_label.setWordWrap(True)
+        self._labels_secondary.append((self._pred_range_label, f"font-size: {t['font_small']};"))
 
         self._pred_signal_label = QLabel("")
-        self._pred_signal_label.setStyleSheet("font-size: 13px; font-weight: bold;")
 
         ai_sep = QFrame()
         ai_sep.setFrameShape(QFrame.Shape.HLine)
-        ai_sep.setStyleSheet("color: #555555; margin-top: 10px; margin-bottom: 10px;")
+        self._separators.append((ai_sep, "margin-top: 10px; margin-bottom: 10px;"))
 
         ai_title = QLabel("AI Analysis")
-        ai_title.setStyleSheet("font-size: 12px; font-weight: bold; color: #aaaaaa;")
+        self._labels_secondary.append((ai_title, f"font-size: {t['font_body']}; font-weight: bold;"))
 
         self._ai_button = QPushButton("Analyse with AI")
         self._ai_button.clicked.connect(self.ai_requested)
         self._ai_button.setEnabled(False)
 
         self._ai_score_label = QLabel("")
-        self._ai_score_label.setStyleSheet("font-size: 13px; font-weight: bold;")
-
         self._ai_desc_label = QLabel("")
-        self._ai_desc_label.setStyleSheet("font-size: 11px; color: #aaaaaa;")
-
         self._ai_summary_label = QLabel("")
-        self._ai_summary_label.setStyleSheet("font-size: 11px; color: #888888; font-style: italic;")
         self._ai_summary_label.setWordWrap(True)
+        self._labels_muted.append((self._ai_summary_label, f"font-size: {t['font_small']}; font-style: italic;"))
 
         layout.addWidget(pred_title)
         layout.addSpacing(4)
@@ -267,13 +274,14 @@ class InfoPanel(QWidget):
         return tab
 
     def _build_portfolio_tab(self):
+        t = self._tokens
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(4, 12, 4, 8)
         layout.setSpacing(6)
 
         pos_title = QLabel("My Position")
-        pos_title.setStyleSheet("font-size: 12px; font-weight: bold; color: #aaaaaa;")
+        self._labels_secondary.append((pos_title, f"font-size: {t['font_body']}; font-weight: bold;"))
         layout.addWidget(pos_title)
 
         def _input_row(label_text, placeholder=""):
@@ -281,11 +289,11 @@ class InfoPanel(QWidget):
             row = QHBoxLayout(w)
             row.setContentsMargins(0, 2, 0, 2)
             lbl = QLabel(label_text)
-            lbl.setStyleSheet("font-size: 11px; color: #888888;")
             lbl.setFixedWidth(74)
+            self._labels_muted.append((lbl, f"font-size: {t['font_small']};"))
             inp = QLineEdit()
             inp.setPlaceholderText(placeholder)
-            inp.setStyleSheet("font-size: 11px;")
+            inp.setStyleSheet(f"font-size: {t['font_small']};")
             row.addWidget(lbl)
             row.addWidget(inp)
             return w, inp
@@ -308,10 +316,10 @@ class InfoPanel(QWidget):
 
         perf_sep = QFrame()
         perf_sep.setFrameShape(QFrame.Shape.HLine)
-        perf_sep.setStyleSheet("color: #555555; margin-top: 8px; margin-bottom: 4px;")
+        self._separators.append((perf_sep, "margin-top: 8px; margin-bottom: 4px;"))
 
         perf_title = QLabel("Performance")
-        perf_title.setStyleSheet("font-size: 12px; font-weight: bold; color: #aaaaaa;")
+        self._labels_secondary.append((perf_title, f"font-size: {t['font_body']}; font-weight: bold;"))
 
         purchased_row,   self._port_purchased   = self._stat_row("Purchased")
         curr_row,        self._port_curr_val     = self._stat_row("Current Price")
@@ -345,6 +353,11 @@ class InfoPanel(QWidget):
         return tab
 
     # ------------------------------------------------------------------ public
+
+    def set_theme(self, theme):
+        self._tokens = get_tokens(theme)
+        self._profile_row.set_theme(theme)
+        self._apply_theme_styles(self._tokens)
 
     def update(self, symbol, df, cache):
         self.clear_prediction()
@@ -383,12 +396,13 @@ class InfoPanel(QWidget):
         prev = df["Close"].iloc[-2] if len(df) > 1 else current
         change_pct = ((current - prev) / prev) * 100
         self._price_label.setText(f"${current:.2f}")
+        t = self._tokens
         if change_pct >= 0:
             self._change_label.setText(f"▲ +{change_pct:.2f}%")
-            self._change_label.setStyleSheet("font-size: 15px; color: #00cc66;")
+            self._change_label.setStyleSheet(f"font-size: {t['font_subhead']}; color: {t['buy_color']};")
         else:
             self._change_label.setText(f"▼ {change_pct:.2f}%")
-            self._change_label.setStyleSheet("font-size: 15px; color: #ff4444;")
+            self._change_label.setStyleSheet(f"font-size: {t['font_subhead']}; color: {t['sell_color']};")
 
         now = pd.Timestamp.now()
         month_df = df[df.index >= now - pd.Timedelta(days=30)]
@@ -425,12 +439,13 @@ class InfoPanel(QWidget):
 
     def set_ai_result(self, result):
         from .ai_analysis_dialog import _score_color, _score_description
+        t = self._tokens
         score = result.get("score", 0)
         color = _score_color(score)
         self._ai_score_label.setText(f"{score:+d}")
-        self._ai_score_label.setStyleSheet(f"font-size: 22px; font-weight: bold; color: {color};")
+        self._ai_score_label.setStyleSheet(f"font-size: {t['font_value']}; font-weight: bold; color: {color};")
         self._ai_desc_label.setText(_score_description(score))
-        self._ai_desc_label.setStyleSheet(f"font-size: 11px; color: {color};")
+        self._ai_desc_label.setStyleSheet(f"font-size: {t['font_small']}; color: {color};")
         self._ai_summary_label.setText(result.get("summary", ""))
 
     def set_prediction_running(self, running: bool):
@@ -438,20 +453,18 @@ class InfoPanel(QWidget):
         self._predict_button.setText("Running..." if running else "Predict Next Month")
 
     def set_prediction_result(self, pred, low, high, current_price):
+        t = self._tokens
         self._pred_price_label.setText(f"${pred:.2f}")
         self._pred_range_label.setText(f"Range: ${low:.2f} – ${high:.2f}")
         change_pct = ((pred - current_price) / current_price) * 100
         if change_pct >= 5:
-            signal, color = "BUY", "#00cc66"
+            signal, color = "BUY", t["buy_color"]
         elif change_pct <= -5:
-            signal, color = "SELL", "#ff4444"
+            signal, color = "SELL", t["sell_color"]
         else:
-            signal, color = "HOLD", "#ffaa00"
+            signal, color = "HOLD", t["hold_color"]
         self._pred_signal_label.setText(f"{signal}  ({change_pct:+.1f}%)")
-        self._pred_signal_label.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {color};")
-
-    def set_theme(self, theme):
-        self._profile_row.set_theme(theme)
+        self._pred_signal_label.setStyleSheet(f"font-size: {t['font_title']}; font-weight: bold; color: {color};")
 
     def clear_prediction(self):
         self._pred_price_label.setText("")
@@ -460,7 +473,37 @@ class InfoPanel(QWidget):
 
     # ------------------------------------------------------------------ internal
 
+    def _apply_theme_styles(self, tokens):
+        t = tokens
+        self._symbol_label.setStyleSheet(
+            f"font-size: {t['font_symbol']}; font-weight: bold; color: {t['value_text']};"
+        )
+        self._price_label.setStyleSheet(
+            f"font-size: {t['font_price']}; font-weight: bold; margin-top: 16px; color: {t['value_text']};"
+        )
+        self._pred_price_label.setStyleSheet(
+            f"font-size: {t['font_value']}; font-weight: bold; color: {t['value_text']};"
+        )
+        self._name_label.setStyleSheet(f"font-size: {t['font_title']}; color: {t['label_secondary']};")
+        self._profile_sep.setStyleSheet(
+            f"color: {t['separator_strong']}; margin-top: 6px; margin-bottom: 10px;"
+        )
+        self._main_sep.setStyleSheet(
+            f"color: {t['separator']}; margin-top: 8px; margin-bottom: 4px;"
+        )
+        for lbl, base in self._labels_value:
+            lbl.setStyleSheet(f"{base} color: {t['value_text']};")
+        for lbl, base in self._labels_secondary:
+            lbl.setStyleSheet(f"{base} color: {t['label_secondary']};")
+        for lbl, base in self._labels_muted:
+            lbl.setStyleSheet(f"{base} color: {t['label_muted']};")
+        for lbl, base in self._labels_faint:
+            lbl.setStyleSheet(f"{base} color: {t['label_faint']};")
+        for sep, margins in self._separators:
+            sep.setStyleSheet(f"color: {t['separator']}; {margins}")
+
     def _refresh_portfolio_tab(self, portfolio):
+        t = self._tokens
         if portfolio:
             self._port_shares.setText(str(portfolio.get('shares', '')))
             self._port_cost.setText(str(portfolio.get('cost_per_share', '')))
@@ -474,23 +517,29 @@ class InfoPanel(QWidget):
             value = shares * self._current_price
             gain = value - total_cost
             gain_pct = (gain / total_cost * 100) if total_cost > 0 else 0
-            color = "#00cc66" if gain >= 0 else "#ff4444"
+            color = t["buy_color"] if gain >= 0 else t["sell_color"]
 
             self._port_purchased.setText(portfolio.get('purchase_date', '—'))
             self._port_curr_val.setText(f"${self._current_price:.2f}")
             self._port_cost_total.setText(f"${total_cost:,.2f}")
             self._port_value.setText(f"${value:,.2f}")
             self._port_change.setText(f"{gain_pct:+.1f}%  (${gain:+,.2f})")
-            self._port_change.setStyleSheet(f"font-size: 11px; color: {color}; font-weight: bold;")
+            self._port_change.setStyleSheet(
+                f"font-size: {t['font_small']}; color: {color}; font-weight: bold;"
+            )
 
             if target is not None:
                 dist_pct = ((target - self._current_price) / self._current_price) * 100
-                t_color = "#ffaa00" if self._current_price < target else "#ff4444"
+                t_color = t["hold_color"] if self._current_price < target else t["sell_color"]
                 self._port_target_perf.setText(f"${target:,.2f}  ({dist_pct:+.1f}%)")
-                self._port_target_perf.setStyleSheet(f"font-size: 11px; color: {t_color}; font-weight: bold;")
+                self._port_target_perf.setStyleSheet(
+                    f"font-size: {t['font_small']}; color: {t_color}; font-weight: bold;"
+                )
             else:
                 self._port_target_perf.setText("—")
-                self._port_target_perf.setStyleSheet("font-size: 11px; color: #dddddd; font-weight: bold;")
+                self._port_target_perf.setStyleSheet(
+                    f"font-size: {t['font_small']}; color: {t['value_text']}; font-weight: bold;"
+                )
 
             self._port_perf_section.show()
         else:
@@ -581,19 +630,20 @@ class InfoPanel(QWidget):
             self._senate_status.setText("No recent insider trades found.")
             return
         self._senate_status.hide()
-        for t in trades:
-            name      = t.get("name") or t.get("senator") or "Unknown"
-            trade_type = (t.get("type") or t.get("transaction_type") or "Unknown").upper()
-            date      = t.get("transaction_date") or t.get("date") or ""
-            amount    = t.get("amount", "")
-            is_buy    = any(k in trade_type for k in ("BUY", "PURCHASE"))
-            is_sell   = any(k in trade_type for k in ("SALE", "SELL"))
-            color     = "#00cc66" if is_buy else ("#ff4444" if is_sell else "#888888")
-            arrow     = "▲" if is_buy else ("▼" if is_sell else "·")
-            detail    = f"{date}" + (f"  ·  {amount}" if amount else "")
+        t = self._tokens
+        for trade in trades:
+            name       = trade.get("name") or trade.get("senator") or "Unknown"
+            trade_type = (trade.get("type") or trade.get("transaction_type") or "Unknown").upper()
+            date       = trade.get("transaction_date") or trade.get("date") or ""
+            amount     = trade.get("amount", "")
+            is_buy     = any(k in trade_type for k in ("BUY", "PURCHASE"))
+            is_sell    = any(k in trade_type for k in ("SALE", "SELL"))
+            color      = t["buy_color"] if is_buy else (t["sell_color"] if is_sell else t["label_muted"])
+            arrow      = "▲" if is_buy else ("▼" if is_sell else "·")
+            detail     = f"{date}" + (f"  ·  {amount}" if amount else "")
             entry = QLabel(
                 f'<span style="color:{color};">{arrow} {trade_type}</span>  {name}'
-                f'<br><span style="color:#666666; font-size:11px;">{detail}</span>'
+                f'<br><span style="color:{t["label_faint"]}; font-size:{t["font_small"]};">{detail}</span>'
             )
             entry.setTextFormat(Qt.TextFormat.RichText)
             entry.setWordWrap(True)

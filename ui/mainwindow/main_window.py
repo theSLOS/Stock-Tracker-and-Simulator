@@ -95,7 +95,7 @@ class MainWindow(QMainWindow):
         self._stack.addWidget(stock_widget)
 
         # --- Explore tab
-        self.explore_panel = ExplorePanel()
+        self.explore_panel = ExplorePanel(theme=startup_theme)
         self.explore_panel.add_to_portfolio.connect(self.add_stock_from_explore)
 
         self._tabs.addTab(self._stack, "Portfolio")
@@ -122,7 +122,8 @@ class MainWindow(QMainWindow):
             old = self._stack.widget(1)
             self._stack.removeWidget(old)
             old.deleteLater()
-        page = UserPage(self.cache, self.csv_path, self.user_profile, self)
+        current_theme = self.user_profile.get("preferences", {}).get("theme", "dark")
+        page = UserPage(self.cache, self.csv_path, self.user_profile, theme=current_theme, parent=self)
         page.back_requested.connect(lambda: self._stack.setCurrentIndex(0))
         page.settings_requested.connect(self.open_settings)
         self._stack.addWidget(page)
@@ -138,6 +139,7 @@ class MainWindow(QMainWindow):
                 apply_palette(QApplication.instance(), new_theme)
                 self.chart_panel.apply_theme(new_theme)
                 self.info_panel.set_theme(new_theme)
+                self.explore_panel.set_theme(new_theme)
 
     def _on_tab_changed(self, index):
         if index == 1:
@@ -229,15 +231,16 @@ class MainWindow(QMainWindow):
         info = self.cache.get_stock_data(symbol)
         name = info.get("name", symbol) if info else symbol
 
+        current_theme = self.user_profile.get("preferences", {}).get("theme", "dark")
         if self.cache.is_ai_analysis_fresh(symbol):
             cached = self.cache.get_ai_analysis(symbol)
-            dialog = AIAnalysisDialog(symbol, name, self)
+            dialog = AIAnalysisDialog(symbol, name, theme=current_theme, parent=self)
             dialog.show_results(cached)
             dialog.exec()
             return
 
         self._ai_worker = AIAnalysisWorker(symbol, name, self.df)
-        dialog = AIAnalysisDialog(symbol, name, self)
+        dialog = AIAnalysisDialog(symbol, name, theme=current_theme, parent=self)
         self._ai_worker.finished.connect(dialog.show_results)
         self._ai_worker.finished.connect(lambda result, sym=symbol: self._on_ai_finished(sym, result))
         self._ai_worker.error.connect(dialog.show_error)

@@ -10,6 +10,8 @@ from PyQt6.QtWidgets import (
     QPushButton, QVBoxLayout, QWidget,
 )
 
+from ..theme import get_tokens
+
 _PIE_COLORS = [
     "#6495ED", "#32CD32", "#FF6347", "#FFD700",
     "#BA55D3", "#1E90FF", "#FF8C00", "#00FA9A",
@@ -52,10 +54,11 @@ def _make_segment_path(cx, cy, outer_r, inner_r, start_angle, span_angle):
 class DonutChartWidget(QWidget):
     hovered = pyqtSignal(int)
 
-    def __init__(self, positions, colors, parent=None):
+    def __init__(self, positions, colors, tokens, parent=None):
         super().__init__(parent)
         self._positions = positions
         self._qcolors = [QColor(c) for c in colors]
+        self._tokens = tokens
         self._hovered_idx = -1
         self._draw_progress = 0.0
         self.setFixedSize(300, 300)
@@ -190,7 +193,7 @@ class DonutChartWidget(QWidget):
 
         # Inner circle to clear center (matches app background)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(QColor("#2a2a2a")))
+        painter.setBrush(QBrush(QColor(self._tokens["donut_center"])))
         painter.drawEllipse(QRectF(cx - inner_r + 1, cy - inner_r + 1, (inner_r - 1) * 2, (inner_r - 1) * 2))
 
         # Center text: stock detail on hover, total otherwise
@@ -205,18 +208,18 @@ class DonutChartWidget(QWidget):
             font.setPixelSize(15)
             font.setBold(True)
             painter.setFont(font)
-            painter.setPen(QColor("#ffffff"))
+            painter.setPen(QColor(self._tokens["value_text"]))
             painter.drawText(QRectF(cx - 65, cy - 42, 130, 22), Qt.AlignmentFlag.AlignCenter, p["symbol"])
 
             font.setPixelSize(12)
             font.setBold(False)
             painter.setFont(font)
-            painter.setPen(QColor("#cccccc"))
+            painter.setPen(QColor(self._tokens["value_text"]))
             painter.drawText(QRectF(cx - 65, cy - 18, 130, 20), Qt.AlignmentFlag.AlignCenter, f"${p['current_value']:,.0f}")
 
             font.setPixelSize(10)
             painter.setFont(font)
-            painter.setPen(QColor("#888888"))
+            painter.setPen(QColor(self._tokens["label_muted"]))
             painter.drawText(QRectF(cx - 65, cy + 2, 130, 18), Qt.AlignmentFlag.AlignCenter, f"{pct:.1f}% of portfolio")
 
             font.setPixelSize(12)
@@ -229,13 +232,13 @@ class DonutChartWidget(QWidget):
             font.setPixelSize(17)
             font.setBold(True)
             painter.setFont(font)
-            painter.setPen(QColor("#dcdcdc"))
+            painter.setPen(QColor(self._tokens["value_text"]))
             painter.drawText(QRectF(cx - 70, cy - 18, 140, 26), Qt.AlignmentFlag.AlignCenter, f"${total:,.0f}")
 
             font.setPixelSize(10)
             font.setBold(False)
             painter.setFont(font)
-            painter.setPen(QColor("#666666"))
+            painter.setPen(QColor(self._tokens["label_faint"]))
             painter.drawText(QRectF(cx - 70, cy + 8, 140, 18), Qt.AlignmentFlag.AlignCenter, "Total Value")
 
 
@@ -243,7 +246,7 @@ class _LegendRow(QWidget):
     hover_enter = pyqtSignal(int)
     hover_leave = pyqtSignal()
 
-    def __init__(self, idx, pos, color, parent=None):
+    def __init__(self, idx, pos, color, tokens, parent=None):
         super().__init__(parent)
         self._idx = idx
         self._color = QColor(color)
@@ -260,17 +263,17 @@ class _LegendRow(QWidget):
         dot.setFixedWidth(16)
 
         sym = QLabel(pos["symbol"])
-        sym.setStyleSheet("font-size: 12px; font-weight: bold;")
+        sym.setStyleSheet(f"font-size: {tokens['font_body']}; font-weight: bold;")
 
         gain_color_hex = "#00cc66" if pos["gain_pct"] >= 0 else "#ff4444"
         sign = "+" if pos["gain_pct"] >= 0 else ""
         pct_lbl = QLabel(f"{sign}{pos['gain_pct']:.1f}%")
-        pct_lbl.setStyleSheet(f"font-size: 12px; color: {gain_color_hex};")
+        pct_lbl.setStyleSheet(f"font-size: {tokens['font_body']}; color: {gain_color_hex};")
         pct_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
         pct_lbl.setFixedWidth(64)
 
         val_lbl = QLabel(f"${pos['current_value']:,.0f}")
-        val_lbl.setStyleSheet("font-size: 12px; color: #aaaaaa;")
+        val_lbl.setStyleSheet(f"font-size: {tokens['font_body']}; color: {tokens['label_secondary']};")
         val_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
         val_lbl.setFixedWidth(72)
 
@@ -304,19 +307,19 @@ class _LegendRow(QWidget):
 
 
 class _LegendWidget(QWidget):
-    def __init__(self, positions, colors, parent=None):
+    def __init__(self, positions, colors, tokens, parent=None):
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setSpacing(3)
         layout.setContentsMargins(0, 0, 0, 0)
 
         title = QLabel("Holdings")
-        title.setStyleSheet("font-size: 13px; font-weight: bold; color: #aaaaaa;")
+        title.setStyleSheet(f"font-size: {tokens['font_title']}; font-weight: bold; color: {tokens['label_secondary']};")
         layout.addWidget(title)
 
         self._rows = []
         for i, (pos, color) in enumerate(zip(positions, colors)):
-            row = _LegendRow(i, pos, color)
+            row = _LegendRow(i, pos, color, tokens)
             self._rows.append(row)
             layout.addWidget(row)
 
@@ -333,8 +336,9 @@ class UserPage(QWidget):
     back_requested = pyqtSignal()
     settings_requested = pyqtSignal()
 
-    def __init__(self, cache, csv_path, user_profile, parent=None):
+    def __init__(self, cache, csv_path, user_profile, theme="dark", parent=None):
         super().__init__(parent)
+        tokens = get_tokens(theme)
         positions = _load_positions(cache, csv_path)
         username = user_profile.get("username", "")
         email = user_profile.get("email", "")
@@ -346,7 +350,7 @@ class UserPage(QWidget):
 
         # Nav bar
         _btn_style = (
-            "font-size: 13px; background: transparent; border: none; padding: 2px 0;"
+            f"font-size: {tokens['font_title']}; background: transparent; border: none; padding: 2px 0;"
         )
         nav = QHBoxLayout()
         back_btn = QPushButton("← Back")
@@ -357,7 +361,7 @@ class UserPage(QWidget):
         settings_btn = QPushButton("Settings")
         settings_btn.setFlat(True)
         settings_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        settings_btn.setStyleSheet(_btn_style + " color: #888888;")
+        settings_btn.setStyleSheet(_btn_style + f" color: {tokens['label_muted']};")
         settings_btn.clicked.connect(self.settings_requested)
         nav.addWidget(back_btn)
         nav.addStretch()
@@ -374,13 +378,13 @@ class UserPage(QWidget):
         name_col = QVBoxLayout()
         name_col.setSpacing(3)
         name_lbl = QLabel(username)
-        name_lbl.setStyleSheet("font-size: 24px; font-weight: bold;")
+        name_lbl.setStyleSheet(f"font-size: {tokens['font_name']}; font-weight: bold;")
         name_col.addWidget(name_lbl)
 
         sub_parts = [s for s in [email, phone] if s]
         if sub_parts:
             sub_lbl = QLabel("  ·  ".join(sub_parts))
-            sub_lbl.setStyleSheet("font-size: 12px; color: #888888;")
+            sub_lbl.setStyleSheet(f"font-size: {tokens['font_body']}; color: {tokens['label_muted']};")
             name_col.addWidget(sub_lbl)
 
         header_row.addLayout(name_col)
@@ -390,13 +394,13 @@ class UserPage(QWidget):
 
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet("color: #444444;")
+        sep.setStyleSheet(f"color: {tokens['separator']};")
         root.addWidget(sep)
         root.addSpacing(18)
 
         # Portfolio section title
         port_title = QLabel("Portfolio")
-        port_title.setStyleSheet("font-size: 15px; font-weight: bold;")
+        port_title.setStyleSheet(f"font-size: {tokens['font_subhead']}; font-weight: bold;")
         root.addWidget(port_title)
         root.addSpacing(14)
 
@@ -406,12 +410,12 @@ class UserPage(QWidget):
                 "Use the Portfolio tab to track your holdings."
             )
             empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            empty.setStyleSheet("font-size: 13px; color: #666666;")
+            empty.setStyleSheet(f"font-size: {tokens['font_title']}; color: {tokens['label_faint']};")
             root.addWidget(empty, stretch=1)
         else:
             colors = [_PIE_COLORS[i % len(_PIE_COLORS)] for i in range(len(positions))]
-            chart = DonutChartWidget(positions, colors)
-            legend = _LegendWidget(positions, colors)
+            chart = DonutChartWidget(positions, colors, tokens)
+            legend = _LegendWidget(positions, colors, tokens)
 
             # Bidirectional hover sync
             chart.hovered.connect(legend.set_highlighted)
@@ -426,7 +430,7 @@ class UserPage(QWidget):
 
             right = QVBoxLayout()
             right.setSpacing(22)
-            right.addWidget(_build_stats(positions))
+            right.addWidget(_build_stats(positions, tokens))
             right.addWidget(legend)
             right.addStretch()
             body.addLayout(right, stretch=1)
@@ -475,7 +479,7 @@ def _load_positions(cache, csv_path):
     return positions
 
 
-def _build_stats(positions):
+def _build_stats(positions, tokens):
     total_cost = sum(p["total_cost"] for p in positions)
     total_value = sum(p["current_value"] for p in positions)
     overall_gain = total_value - total_cost
@@ -497,15 +501,16 @@ def _build_stats(positions):
     layout.setContentsMargins(0, 0, 0, 0)
 
     title = QLabel("Summary")
-    title.setStyleSheet("font-size: 13px; font-weight: bold; color: #aaaaaa;")
+    title.setStyleSheet(f"font-size: {tokens['font_title']}; font-weight: bold; color: {tokens['label_secondary']};")
     layout.addWidget(title)
 
-    def _row(label, value, color="#dcdcdc"):
+    def _row(label, value, color=None):
         row = QHBoxLayout()
         lbl = QLabel(label)
-        lbl.setStyleSheet("font-size: 12px; color: #888888;")
+        lbl.setStyleSheet(f"font-size: {tokens['font_body']}; color: {tokens['label_muted']};")
         val = QLabel(value)
-        val.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {color};")
+        val_color = color if color else tokens["value_text"]
+        val.setStyleSheet(f"font-size: {tokens['font_title']}; font-weight: bold; color: {val_color};")
         val.setAlignment(Qt.AlignmentFlag.AlignRight)
         row.addWidget(lbl)
         row.addStretch()

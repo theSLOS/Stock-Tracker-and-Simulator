@@ -2,7 +2,7 @@
     "username": "admin",
     "password": "password",
     "preferences": {
-        "theme": "light",
+        "theme": "dark",
         "default_stock": "APPL"
     },
     "email": "",

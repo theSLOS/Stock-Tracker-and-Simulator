@@ -2,14 +2,22 @@ from PyQt6.QtGui import QPalette, QColor
 
 THEMES = {
     "dark": {
+        # Semantic text / UI tokens
+        "label_secondary":   "#909090",
+        "label_muted":       "#686868",
+        "label_faint":       "#4E4E4E",
+        "value_text":        "#E0E0E0",
+        "separator":         "#555555",
+        "separator_strong":  "#3a3a3a",
+        "donut_center":      "#353535",
         # Qt palette
         "window":            "#353535",
-        "window_text":       "#dcdcdc",
+        "window_text":       "#E0E0E0",
         "base":              "#232323",
         "alternate_base":    "#353535",
-        "text":              "#dcdcdc",
+        "text":              "#E0E0E0",
         "button":            "#353535",
-        "button_text":       "#dcdcdc",
+        "button_text":       "#E0E0E0",
         "highlight":         "#2a82da",
         "highlighted_text":  "#000000",
         # pyqtgraph chart
@@ -31,14 +39,22 @@ THEMES = {
         "empty_label_style": "color: #666; font-size: 16px;",
     },
     "light": {
+        # Semantic text / UI tokens
+        "label_secondary":   "#5A5A5A",
+        "label_muted":       "#848484",
+        "label_faint":       "#ABABAB",
+        "value_text":        "#222222",
+        "separator":         "#cccccc",
+        "separator_strong":  "#dddddd",
+        "donut_center":      "#f0f0f0",
         # Qt palette
         "window":            "#f0f0f0",
-        "window_text":       "#1e1e1e",
+        "window_text":       "#222222",
         "base":              "#ffffff",
         "alternate_base":    "#e9e9e9",
-        "text":              "#1e1e1e",
+        "text":              "#222222",
         "button":            "#e1e1e1",
-        "button_text":       "#1e1e1e",
+        "button_text":       "#222222",
         "highlight":         "#2a82da",
         "highlighted_text":  "#ffffff",
         # pyqtgraph chart
@@ -62,8 +78,32 @@ THEMES = {
 }
 
 
+_FONT_SCALE = {
+    "font_micro":   "10px",   # disclaimers, timestamps
+    "font_small":   "11px",   # stat keys, secondary labels
+    "font_body":    "12px",   # body text, list items
+    "font_title":   "13px",   # section titles, main UI text
+    "font_subhead": "15px",   # panel subheadings, price change
+    "font_heading": "16px",   # dialog / page headers
+    "font_value":   "22px",   # value displays, inline scores
+    "font_name":    "24px",   # profile name heading
+    "font_symbol":  "26px",   # stock ticker symbol
+    "font_price":   "32px",   # current price large display
+    "font_score":   "52px",   # AI analysis score number
+}
+
+_SIGNAL_COLORS = {
+    "buy_color":  "#00cc66",
+    "sell_color": "#ff4444",
+    "hold_color": "#ffaa00",
+}
+
+
 def get_tokens(theme_name: str) -> dict:
-    return THEMES.get(theme_name, THEMES["dark"])
+    t = dict(THEMES.get(theme_name, THEMES["dark"]))
+    t.update(_FONT_SCALE)
+    t.update(_SIGNAL_COLORS)
+    return t
 
 
 def apply_palette(app, theme_name: str):

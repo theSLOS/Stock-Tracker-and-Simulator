@@ -6,29 +6,33 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtGui import QColor, QFont
 
+from ..theme import get_tokens
+
 
 class ExplorePanel(QWidget):
     add_to_portfolio = pyqtSignal(str)
 
-    def __init__(self, parent=None):
+    def __init__(self, theme="dark", parent=None):
         super().__init__(parent)
         self._worker = None
+        self._tokens = get_tokens(theme)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(10)
 
-        # --- header
         header_row = QHBoxLayout()
 
         title = QLabel("Explore Markets")
         title_font = QFont()
-        title_font.setPointSize(15)
+        title_font.setPixelSize(int(self._tokens["font_subhead"].replace("px", "")))
         title_font.setBold(True)
         title.setFont(title_font)
 
         self._status_label = QLabel("Click Refresh to load market data")
-        self._status_label.setStyleSheet("color: #888;")
+        self._status_label.setStyleSheet(
+            f"font-size: {self._tokens['font_small']}; color: {self._tokens['label_faint']};"
+        )
 
         self._refresh_btn = QPushButton("Refresh")
         self._refresh_btn.setFixedWidth(90)
@@ -39,7 +43,6 @@ class ExplorePanel(QWidget):
         header_row.addWidget(self._status_label)
         header_row.addWidget(self._refresh_btn)
 
-        # --- tabs
         self._tabs = QTabWidget()
 
         self._gainers_table = self._make_table()
@@ -56,6 +59,12 @@ class ExplorePanel(QWidget):
         layout.addWidget(self._tabs)
 
     # ------------------------------------------------------------------ public
+
+    def set_theme(self, theme):
+        self._tokens = get_tokens(theme)
+        self._status_label.setStyleSheet(
+            f"font-size: {self._tokens['font_small']}; color: {self._tokens['label_faint']};"
+        )
 
     def refresh_if_empty(self):
         if self._gainers_table.rowCount() == 0 and (self._worker is None or not self._worker.isRunning()):
@@ -83,7 +92,6 @@ class ExplorePanel(QWidget):
         return table
 
     def start_background_load(self):
-        """Start a cache-aware load at login without user interaction."""
         if self._worker is not None and self._worker.isRunning():
             return
         if self._gainers_table.rowCount() > 0:
@@ -110,16 +118,17 @@ class ExplorePanel(QWidget):
         self._status_label.setText(f"Loaded {len(data)} stocks")
 
         gainers = sorted(data, key=lambda x: x["change_pct"], reverse=True)
-        losers = sorted(data, key=lambda x: x["change_pct"])
-        active = sorted(data, key=lambda x: x["volume"], reverse=True)
-        movers = sorted(data, key=lambda x: abs(x["change_pct"]), reverse=True)
+        losers  = sorted(data, key=lambda x: x["change_pct"])
+        active  = sorted(data, key=lambda x: x["volume"], reverse=True)
+        movers  = sorted(data, key=lambda x: abs(x["change_pct"]), reverse=True)
 
         self._fill_table(self._gainers_table, gainers[:20])
-        self._fill_table(self._losers_table, losers[:20])
-        self._fill_table(self._active_table, active[:20])
-        self._fill_table(self._movers_table, movers[:20])
+        self._fill_table(self._losers_table,  losers[:20])
+        self._fill_table(self._active_table,  active[:20])
+        self._fill_table(self._movers_table,  movers[:20])
 
     def _fill_table(self, table, rows):
+        t = self._tokens
         table.setRowCount(len(rows))
         for row, item in enumerate(rows):
             symbol = item["symbol"]
@@ -132,7 +141,9 @@ class ExplorePanel(QWidget):
                 QTableWidgetItem(f"{change:+.2f}%"),
                 QTableWidgetItem(self._fmt_volume(item["volume"])),
             ]
-            cells[3].setForeground(QColor(80, 220, 120) if change >= 0 else QColor(220, 70, 70))
+            cells[3].setForeground(
+                QColor(t["buy_color"]) if change >= 0 else QColor(t["sell_color"])
+            )
 
             for col, cell in enumerate(cells):
                 cell.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignHCenter)
