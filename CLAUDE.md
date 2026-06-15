@@ -37,16 +37,16 @@ requirements.txt
 ui/                            # All PyQt6 UI components
     mainwindow/                # Main app window package (see ui/mainwindow/CLAUDE.md)
         main_window.py         # MainWindow (QMainWindow) + StockFetchWorker + apply_dark/light_theme()
-        info_panel.py          # InfoPanel (QWidget) — left panel (profile row, stock header, 3 tabs)
+        info_panel.py          # InfoPanel (QWidget) — left panel (profile row, stock header, 3 tabs); theme-aware via set_theme()
         chart_panel.py         # ChartPanel (QWidget) — right panel
         stock_chart.py         # StockChart (QWidget) — self-contained chart
-        explore_panel.py       # ExplorePanel (QWidget) — market explorer tab
-        portfolio_page.py      # UserPage (QWidget) — full-window portfolio page
-        ai_analysis_dialog.py  # AIAnalysisDialog (QDialog)
+        explore_panel.py       # ExplorePanel (QWidget) — market explorer tab; theme-aware via set_theme()
+        portfolio_page.py      # UserPage (QWidget) — full-window portfolio page; receives theme= at construction
+        ai_analysis_dialog.py  # AIAnalysisDialog (QDialog); receives theme= at construction
         settings_dialog.py     # UserSettingsDialog (QDialog)
     login_page.py              # LoginDialog (QDialog)
     register_page.py           # RegisterDialog (QDialog)
-    theme.py                   # apply_palette(), get_tokens() — shared theme utility
+    theme.py                   # Centralised token system: THEMES dict + _FONT_SCALE + _SIGNAL_COLORS; get_tokens(theme) → merged dict used by every UI component; apply_palette() sets Qt QPalette
 
 core/                          # Business logic, data, background workers (see core/CLAUDE.md)
     stock_handler.py           # yfinance download, add_new_stock(), calculate_SMA/EMA()
@@ -87,6 +87,7 @@ Users/
 - **`QTabWidget` top-level navigation** — Tab 0: "Portfolio" (contains a `QStackedWidget` for stock view ↔ portfolio page); Tab 1: "Explore" (`ExplorePanel`). `ExploreWorker` is started at login via `start_background_load()` so data is usually ready before the user opens the tab. `refresh_if_empty()` on tab switch acts as a fallback if the background load hasn't fired yet.
 - **`QStackedWidget` within Portfolio tab** — index 0: stock view (InfoPanel + ChartPanel). Index 1: `UserPage`, recreated fresh on every navigation so data is always current.
 - **No menu bar** — settings accessed via the User Page (profile row in InfoPanel).
+- **Centralised theme tokens** — `theme.py` is the single source of truth for all colours and font sizes. `get_tokens(theme)` merges `THEMES[theme]` + `_FONT_SCALE` + `_SIGNAL_COLORS` into one flat dict. Every UI component imports `get_tokens` and uses only token keys — no hardcoded hex values or pixel sizes. Persistent widgets (`InfoPanel`, `ExplorePanel`) expose `set_theme(theme)` and call `_apply_theme_styles(tokens)` on theme switch; one-shot widgets (`UserPage`, `AIAnalysisDialog`) receive `theme=` at construction. `MainWindow.open_settings()` is the single call site that triggers `apply_palette` + `set_theme` on all persistent panels.
 
 ---
 
