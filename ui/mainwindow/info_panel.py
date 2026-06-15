@@ -32,20 +32,53 @@ class _MiniAvatar(QWidget):
 class _ProfileRow(QWidget):
     clicked = pyqtSignal()
 
-    def __init__(self, initial, username, parent=None):
+    _THEMES = {
+        "dark":  {
+            "normal": ("QWidget { background: #4a4a4a; border: 1px solid #5e5e5e; border-radius: 8px; }"
+                       " QLabel { background: transparent; border: none; }"),
+            "hover":  ("QWidget { background: #575757; border: 1px solid #707070; border-radius: 8px; }"
+                       " QLabel { background: transparent; border: none; }"),
+        },
+        "light": {
+            "normal": ("QWidget { background: #e2e2e2; border: 1px solid #cccccc; border-radius: 8px; }"
+                       " QLabel { background: transparent; border: none; }"),
+            "hover":  ("QWidget { background: #d6d6d6; border: 1px solid #bbbbbb; border-radius: 8px; }"
+                       " QLabel { background: transparent; border: none; }"),
+        },
+    }
+
+    def __init__(self, initial, username, theme="dark", parent=None):
         super().__init__(parent)
+        self._theme = theme
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        row = QHBoxLayout(self)
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(8)
-        row.addWidget(_MiniAvatar(initial))
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        self._name_box = QWidget()
+        self._name_box.setStyleSheet(self._THEMES[theme]["normal"])
+        box_row = QHBoxLayout(self._name_box)
+        box_row.setContentsMargins(8, 6, 8, 6)
+        box_row.setSpacing(8)
+        box_row.addWidget(_MiniAvatar(initial))
         name = QLabel(username)
         name.setStyleSheet("font-size: 12px; font-weight: bold;")
-        row.addWidget(name)
-        row.addStretch()
-        chevron = QLabel("›")
-        chevron.setStyleSheet("font-size: 18px; color: #555555;")
-        row.addWidget(chevron)
+        box_row.addWidget(name)
+        box_row.addStretch()
+        chevron = QLabel("❯")
+        chevron.setStyleSheet("font-size: 13px; color: #7aafd4;")
+        box_row.addWidget(chevron)
+        outer.addWidget(self._name_box)
+
+    def set_theme(self, theme):
+        self._theme = theme
+        self._name_box.setStyleSheet(self._THEMES[theme]["normal"])
+
+    def enterEvent(self, event):
+        self._name_box.setStyleSheet(self._THEMES[self._theme]["hover"])
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self._name_box.setStyleSheet(self._THEMES[self._theme]["normal"])
+        super().leaveEvent(event)
 
     def mousePressEvent(self, event):
         self.clicked.emit()
@@ -57,7 +90,7 @@ class InfoPanel(QWidget):
     ai_requested = pyqtSignal()
     profile_clicked = pyqtSignal()
 
-    def __init__(self, username="", parent=None):
+    def __init__(self, username="", theme="dark", parent=None):
         super().__init__(parent)
         self.setMinimumWidth(200)
         self.setMaximumWidth(280)
@@ -71,9 +104,9 @@ class InfoPanel(QWidget):
         layout.setSpacing(4)
 
         initial = username[0].upper() if username else "?"
-        profile_row = _ProfileRow(initial, username)
-        profile_row.clicked.connect(self.profile_clicked)
-        layout.addWidget(profile_row)
+        self._profile_row = _ProfileRow(initial, username, theme=theme)
+        self._profile_row.clicked.connect(self.profile_clicked)
+        layout.addWidget(self._profile_row)
 
         profile_sep = QFrame()
         profile_sep.setFrameShape(QFrame.Shape.HLine)
@@ -416,6 +449,9 @@ class InfoPanel(QWidget):
             signal, color = "HOLD", "#ffaa00"
         self._pred_signal_label.setText(f"{signal}  ({change_pct:+.1f}%)")
         self._pred_signal_label.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {color};")
+
+    def set_theme(self, theme):
+        self._profile_row.set_theme(theme)
 
     def clear_prediction(self):
         self._pred_price_label.setText("")

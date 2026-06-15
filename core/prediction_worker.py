@@ -1,4 +1,5 @@
 import logging
+import traceback
 
 import pandas as pd
 from PyQt6.QtCore import QThread, pyqtSignal
@@ -36,4 +37,6 @@ class PredictionWorker(QThread):
             forecast = model.predict(future)
             self.finished.emit(forecast)
         except Exception as e:
-            self.error.emit(str(e))
+            print(f"[Prediction] Worker error: {e}")
+            traceback.print_exc()
+            self.error.emit("Prediction failed. Check the console for details.")

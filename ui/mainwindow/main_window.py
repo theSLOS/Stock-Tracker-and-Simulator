@@ -1,4 +1,5 @@
 import os
+import traceback
 
 import pandas as pd
 
@@ -41,7 +42,9 @@ class StockFetchWorker(QThread):
                 stock_handler.get_stock_data(self.symbol, self.path)
                 self.finished.emit(None)
         except Exception as e:
-            self.error.emit(str(e))
+            print(f"[StockFetch] Failed to fetch {self.symbol}: {e}")
+            traceback.print_exc()
+            self.error.emit("Failed to fetch stock data. Check the console for details.")
 
 
 class MainWindow(QMainWindow):
@@ -73,10 +76,10 @@ class MainWindow(QMainWindow):
         main_layout = QHBoxLayout(stock_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
 
-        self.info_panel = InfoPanel(username=self.username)
+        startup_theme = user_profile.get("preferences", {}).get("theme", "dark")
+        self.info_panel = InfoPanel(username=self.username, theme=startup_theme)
         self.chart_panel = ChartPanel()
 
-        startup_theme = user_profile.get("preferences", {}).get("theme", "dark")
         if startup_theme != "dark":
             self.chart_panel.apply_theme(startup_theme)
 
@@ -134,6 +137,7 @@ class MainWindow(QMainWindow):
             if new_theme != old_theme:
                 apply_palette(QApplication.instance(), new_theme)
                 self.chart_panel.apply_theme(new_theme)
+                self.info_panel.set_theme(new_theme)
 
     def _on_tab_changed(self, index):
         if index == 1:

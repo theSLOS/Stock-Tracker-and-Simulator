@@ -1,5 +1,6 @@
 import os
 import json
+import traceback
 from datetime import date as _date
 from PyQt6.QtCore import QThread, pyqtSignal
 
@@ -51,8 +52,10 @@ def _load_cache():
             data = json.load(f)
         if data.get("date") == str(_date.today()):
             return data.get("results")
-    except Exception:
+    except FileNotFoundError:
         pass
+    except Exception as e:
+        print(f"[Explore] Cache load failed: {e}")
     return None
 
 
@@ -61,8 +64,9 @@ def _save_cache(results):
         os.makedirs(os.path.dirname(_CACHE_PATH), exist_ok=True)
         with open(_CACHE_PATH, "w", encoding="utf-8") as f:
             json.dump({"date": str(_date.today()), "results": results}, f)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[Explore] Cache save failed: {e}")
+        traceback.print_exc()
 
 
 def _fetch_sp500_tickers():
@@ -133,7 +137,8 @@ class ExploreWorker(QThread):
                         "change_pct": change_pct,
                         "volume": vol,
                     })
-                except Exception:
+                except Exception as e:
+                    print(f"[Explore] Skipping {symbol}: {e}")
                     continue
 
             _save_cache(results)
@@ -142,4 +147,5 @@ class ExploreWorker(QThread):
 
         except Exception as e:
             print(f"[Explore] Worker error: {e}")
-            self.error.emit(str(e))
+            traceback.print_exc()
+            self.error.emit("Failed to load market data. Check the console for details.")

@@ -1,5 +1,6 @@
 import math
 import os
+import traceback
 
 import pandas as pd
 from PyQt6.QtCore import QEasingCurve, QPropertyAnimation, QRectF, Qt, pyqtProperty, pyqtSignal
@@ -467,7 +468,9 @@ def _load_positions(cache, csv_path):
                 "gain_pct": ((current_value - total_cost) / total_cost * 100) if total_cost > 0 else 0.0,
                 "avg_daily_change": avg_daily_change,
             })
-        except Exception:
+        except Exception as e:
+            print(f"[Portfolio] Failed to load position for {symbol}: {e}")
+            traceback.print_exc()
             continue
     return positions
 

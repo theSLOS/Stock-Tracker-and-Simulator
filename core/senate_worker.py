@@ -1,4 +1,5 @@
 import os
+import traceback
 
 import requests
 from PyQt6.QtCore import QThread, pyqtSignal
@@ -42,5 +43,7 @@ class SenateWorker(QThread):
                     "amount": amount
                 })
             self.finished.emit(trades)
-        except Exception:
+        except Exception as e:
+            print(f"[SenateWorker] Failed to fetch insider trades: {e}")
+            traceback.print_exc()
             self.finished.emit([])

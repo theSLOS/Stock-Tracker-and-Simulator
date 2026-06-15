@@ -1,5 +1,6 @@
 import json
 import os
+import traceback
 
 import requests
 import pandas as pd
@@ -40,7 +41,9 @@ class AIAnalysisWorker(QThread):
             self.finished.emit(result)
 
         except Exception as e:
-            self.error.emit(str(e))
+            print(f"[AIAnalysis] Worker error: {e}")
+            traceback.print_exc()
+            self.error.emit("AI analysis failed. Check the console for details.")
 
     def _get_insider_trades(self):
         try:
@@ -65,7 +68,9 @@ class AIAnalysisWorker(QThread):
                 amount = f"{shares:,.0f} shares" + (f" @ ${price:.2f}" if price else "")
                 lines.append(f"- {name}: {trade_type} on {date} ({amount})")
             return "\n".join(lines) if lines else None
-        except Exception:
+        except Exception as e:
+            print(f"[AIAnalysis] Insider trade fetch failed: {e}")
+            traceback.print_exc()
             return None
 
     def _get_price_summary(self):
