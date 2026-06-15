@@ -54,9 +54,10 @@
 ## Gitignore highlights
 
 ```
-*.csv          # Stock price data — downloaded fresh on each machine
-Users/*/cache  # Per-user cache files — regenerated automatically
-.env           # API keys
+*.csv               # Stock price data — downloaded fresh on each machine
+Users/*/cache       # Per-user cache files — regenerated automatically
+Users/explore_cache.json  # Shared daily explore cache — regenerated automatically
+.env                # API keys
 ```
 
 Profile JSONs and `pyrightconfig.json` are committed.
@@ -80,6 +81,18 @@ Profile JSONs and `pyrightconfig.json` are committed.
 - Score: -10 (strongly bearish) to +10 (strongly bullish). `summary` is 1-2 sentences.
 - Result cached per-stock per-user for 24 hours; API only called when stale or absent
 - `anthropic` import deferred to `run()`
+
+---
+
+## ExploreWorker (`explore_worker.py`)
+
+- Fetches the S&P 500 ticker list from Wikipedia using `requests` + `pandas.read_html(StringIO(...))` with a browser User-Agent (required — Wikipedia 403s the default urllib agent)
+- Falls back to a hardcoded 58-ticker curated list (`EXPLORE_TICKERS` / `TICKER_NAMES`) on any fetch error
+- Daily cache at `Users/explore_cache.json` — format: `{"date": "YYYY-MM-DD", "results": [...]}`. Cache is checked before any network call; a cache hit skips the download entirely
+- `ExploreWorker(force=False)` — default, used by `start_background_load()` at login; respects cache
+- `ExploreWorker(force=True)` — used by the manual Refresh button; always re-downloads and overwrites the cache
+- Batch-downloads 5 days of price + volume data via a single `yf.download()` call; computes `change_pct` as day-over-day close change
+- Emits `progress(str)` during each stage so the status label stays informative; emits `finished(list)` with the processed results
 
 ---
 

@@ -99,6 +99,8 @@ class MainWindow(QMainWindow):
         self._tabs.addTab(self.explore_panel, "Explore")
         self._tabs.currentChanged.connect(self._on_tab_changed)
 
+        self.explore_panel.start_background_load()
+
         self.chart_panel.populate_stocks(self.cache.all_stocks())
         if len(self.cache.list_stocks()) == 0:
             default = self.user_profile["preferences"].get("default_stock", "")

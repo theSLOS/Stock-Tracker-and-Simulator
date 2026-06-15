@@ -18,6 +18,7 @@ A desktop stock portfolio viewer and predictor built with Python and PyQt6.
 - **AI market analysis** — Claude scores a stock −10 to +10 with a plain-English summary, pros/cons, and insider trade context; results are cached per user for 24 hours
 - **Insider trades panel** — recent SEC insider transactions for the selected stock, sourced from Finnhub
 - **Portfolio tracker** — record positions (shares, cost basis, optional sell target); interactive animated donut chart with per-holding hover detail and gain/loss stats
+- **Market explorer** — Explore tab shows live Top Gainers, Top Losers, Most Active, and Biggest Movers across the full S&P 500 (~503 tickers), fetched fresh daily from Wikipedia and cached for the session; one click adds any stock to your portfolio
 - **User settings** — edit profile fields, change password, toggle dark/light theme
 
 ---
@@ -127,6 +128,7 @@ Stock-App/
 │   │   ├── info_panel.py        # Left panel — stock header, stats, insider trades, AI, portfolio tab
 │   │   ├── chart_panel.py       # Right panel — stock selector, chart, date range, indicators
 │   │   ├── stock_chart.py       # Self-contained pyqtgraph chart widget
+│   │   ├── explore_panel.py     # Explore tab — market screener tables
 │   │   ├── portfolio_page.py    # Full-window portfolio page with interactive donut chart
 │   │   ├── ai_analysis_dialog.py
 │   │   └── settings_dialog.py
@@ -141,7 +143,8 @@ Stock-App/
 │   ├── stock_model.py           # StockPackage dataclass
 │   ├── prediction_worker.py     # QThread — Prophet 30-day forecast
 │   ├── ai_analysis_worker.py    # QThread — Claude API market analysis
-│   └── senate_worker.py         # QThread — Finnhub insider trades
+│   ├── senate_worker.py         # QThread — Finnhub insider trades
+│   └── explore_worker.py        # QThread — batch market data for Explore tab
 │
 └── Users/
     └── <username>/

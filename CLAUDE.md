@@ -36,10 +36,11 @@ requirements.txt
 
 ui/                            # All PyQt6 UI components
     mainwindow/                # Main app window package (see ui/mainwindow/CLAUDE.md)
-        main_window.py         # MainWindow (QMainWindow) + StockFetchWorker + apply_dark_theme()
-        info_panel.py          # InfoPanel (QWidget) — left panel
+        main_window.py         # MainWindow (QMainWindow) + StockFetchWorker + apply_dark/light_theme()
+        info_panel.py          # InfoPanel (QWidget) — left panel (profile row, stock header, 3 tabs)
         chart_panel.py         # ChartPanel (QWidget) — right panel
         stock_chart.py         # StockChart (QWidget) — self-contained chart
+        explore_panel.py       # ExplorePanel (QWidget) — market explorer tab
         portfolio_page.py      # UserPage (QWidget) — full-window portfolio page
         ai_analysis_dialog.py  # AIAnalysisDialog (QDialog)
         settings_dialog.py     # UserSettingsDialog (QDialog)
@@ -55,11 +56,12 @@ core/                          # Business logic, data, background workers (see c
     prediction_worker.py       # PredictionWorker (QThread) — Prophet
     ai_analysis_worker.py      # AIAnalysisWorker (QThread) — Finnhub + Claude API
     senate_worker.py           # SenateWorker (QThread) — insider trades from Finnhub
+    explore_worker.py          # ExploreWorker (QThread) — S&P 500 fetch + daily cache + batch yfinance download for Explore tab
 
 Users/
     <username>/
-        profile.json           # {"username", "password", "preferences": {"theme", "default_stock"}}
-        cache                  # JSON file (gitignored) — maps symbol → {name, dfpath, lastUpdate, ...}
+        profile.json           # {"username", "password", "email", "phone", "preferences": {"theme", "default_stock"}}
+        cache                  # JSON file (gitignored) — maps symbol → {name, dfpath, lastUpdate, ai_analysis?, portfolio?}
         csvFiles/              # Downloaded CSVs (gitignored) — one per stock, e.g. AAPL.csv
 ```
 
@@ -76,13 +78,15 @@ Users/
 6. Prediction runs in `PredictionWorker` (QThread) using Meta's Prophet model
 7. AI analysis runs in `AIAnalysisWorker` (QThread) — fetches insider trades from Finnhub then calls Claude API
 8. Insider trades panel is populated by `SenateWorker` (QThread), owned by `InfoPanel`, on every stock load
+9. Explore tab: `ExploreWorker` (QThread) starts in the background at login via `start_background_load()`. It checks `Users/explore_cache.json` first — if today's data is already cached it emits immediately; otherwise it fetches the S&P 500 ticker list from Wikipedia (~503 tickers, falls back to a hardcoded 58-ticker curated list on failure), batch-downloads 5 days of data via `yf.download()`, saves the results to the daily cache, then emits. Results are sorted into Top Gainers / Top Losers / Most Active / Biggest Movers tables. The manual Refresh button always bypasses the cache and re-downloads. "+ Add" button emits `add_to_portfolio` → `MainWindow.add_stock_from_explore()` → `StockFetchWorker` (same path as manual add)
 
 ### Key design decisions
 - **Cache stores only filenames** (`AAPL.csv`), not absolute paths. Full path reconstructed as `os.path.join(csv_path, filename)` at runtime — keeps the project portable.
-- **Workers are QThreads** — `StockFetchWorker`, `PredictionWorker`, `AIAnalysisWorker`, and `SenateWorker` all emit `finished` and `error` signals. Never block the UI thread.
+- **Workers are QThreads** — `StockFetchWorker`, `PredictionWorker`, `AIAnalysisWorker`, `SenateWorker`, and `ExploreWorker` all emit `finished` and `error` signals. Never block the UI thread.
 - **`ui/mainwindow/` package** — all main-window files use relative imports (`from .info_panel import InfoPanel`). Pre-login UI and `theme.py` stay in `ui/`. `main.py` imports from `ui.mainwindow.main_window`.
-- **`QStackedWidget` navigation** — index 0: stock view (InfoPanel + ChartPanel). Index 1: `UserPage`, recreated fresh on every navigation so data is always current.
-- **No menu bar** — settings accessed via the User Page.
+- **`QTabWidget` top-level navigation** — Tab 0: "Portfolio" (contains a `QStackedWidget` for stock view ↔ portfolio page); Tab 1: "Explore" (`ExplorePanel`). `ExploreWorker` is started at login via `start_background_load()` so data is usually ready before the user opens the tab. `refresh_if_empty()` on tab switch acts as a fallback if the background load hasn't fired yet.
+- **`QStackedWidget` within Portfolio tab** — index 0: stock view (InfoPanel + ChartPanel). Index 1: `UserPage`, recreated fresh on every navigation so data is always current.
+- **No menu bar** — settings accessed via the User Page (profile row in InfoPanel).
 
 ---
 

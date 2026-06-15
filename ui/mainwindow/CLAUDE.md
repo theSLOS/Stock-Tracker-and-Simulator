@@ -11,6 +11,8 @@ Thin coordinator — owns workers, connects signals, manages navigation. No UI l
 - Owns `StockFetchWorker`, `PredictionWorker`, and `AIAnalysisWorker`
 - Connects `InfoPanel` ↔ `ChartPanel` signals
 - `_score_color()` and `_score_description()` are exported from `ai_analysis_dialog.py` and reused here for the inline panel score display
+- Top-level layout is a `QTabWidget`: Tab 0 "Portfolio" holds a `QStackedWidget` (index 0 = stock view, index 1 = `UserPage`); Tab 1 "Explore" holds `ExplorePanel`. `start_background_load()` is called at the end of `__init__` so market data begins downloading immediately at login. `_on_tab_changed` calls `refresh_if_empty()` as a fallback if the background load hasn't completed yet.
+- `add_stock_from_explore(symbol)` — called by `ExplorePanel.add_to_portfolio` signal; reuses `StockFetchWorker` and switches back to the Portfolio tab on success
 
 ---
 
@@ -65,6 +67,19 @@ Full-window page, takes over `QStackedWidget` index 1. Recreated fresh on every 
 - **Summary stats** — total cost, current value, total gain/loss, avg daily % change (weighted by position size)
 
 Signals: `back_requested`, `settings_requested` — connected by `MainWindow`.
+
+---
+
+## ExplorePanel (`explore_panel.py`)
+
+Market screener shown in the "Explore" top-level tab. Data fetched by `ExploreWorker` (`core/explore_worker.py`).
+
+- **Ticker universe** — full S&P 500 (~503 tickers) fetched from Wikipedia at runtime; falls back to a hardcoded 58-ticker curated list if the fetch fails
+- **Daily cache** — results stored in `Users/explore_cache.json` keyed by date; served instantly on the same calendar day without re-downloading
+- **Four sub-tabs** — Top Gainers (% change desc), Top Losers (% change asc), Most Active (volume desc), Biggest Movers (absolute % change desc); each shows top 20
+- **Table columns** — Symbol, Name, Price, Change % (green/red), Volume, "+ Add" button
+- **Load flow** — `start_background_load()` called by `MainWindow.__init__` at login (`force=False`, cache-aware); `refresh_if_empty()` is the tab-switch fallback; manual Refresh button uses `force=True` to always re-download and overwrite the cache
+- **Add flow** — "+ Add" emits `add_to_portfolio(symbol)` → `MainWindow.add_stock_from_explore()` → `StockFetchWorker` → switches to Portfolio tab
 
 ---
 

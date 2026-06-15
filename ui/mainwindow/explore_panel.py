@@ -59,7 +59,9 @@ class ExplorePanel(QWidget):
 
     def refresh_if_empty(self):
         if self._gainers_table.rowCount() == 0 and (self._worker is None or not self._worker.isRunning()):
-            self._on_refresh()
+            self._status_label.setText("Loading...")
+            self._refresh_btn.setEnabled(False)
+            self._start_worker(force=False)
 
     # ------------------------------------------------------------------ internal
 
@@ -80,11 +82,24 @@ class ExplorePanel(QWidget):
         table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         return table
 
-    def _on_refresh(self):
-        from core.explore_worker import ExploreWorker
+    def start_background_load(self):
+        """Start a cache-aware load at login without user interaction."""
+        if self._worker is not None and self._worker.isRunning():
+            return
+        if self._gainers_table.rowCount() > 0:
+            return
+        self._status_label.setText("Loading market data in background...")
         self._refresh_btn.setEnabled(False)
-        self._status_label.setText("Loading...")
-        self._worker = ExploreWorker()
+        self._start_worker(force=False)
+
+    def _on_refresh(self):
+        self._refresh_btn.setEnabled(False)
+        self._status_label.setText("Refreshing...")
+        self._start_worker(force=True)
+
+    def _start_worker(self, force):
+        from core.explore_worker import ExploreWorker
+        self._worker = ExploreWorker(force=force)
         self._worker.finished.connect(self._on_data_loaded)
         self._worker.error.connect(self._on_error)
         self._worker.progress.connect(self._status_label.setText)
