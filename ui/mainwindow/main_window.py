@@ -6,10 +6,11 @@ from core import caching
 from core.prediction_worker import PredictionWorker
 from .info_panel import InfoPanel
 from .chart_panel import ChartPanel
+from .explore_panel import ExplorePanel
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
-    QHBoxLayout, QMessageBox, QInputDialog, QStackedWidget
+    QHBoxLayout, QVBoxLayout, QTabWidget, QStackedWidget, QMessageBox, QInputDialog
 )
 from PyQt6.QtCore import QThread, pyqtSignal
 
@@ -61,8 +62,12 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"Stock Viewer - User: {self.username}")
         self.resize(1400, 800)
 
+        # Top-level tab widget: Portfolio | Explore
+        self._tabs = QTabWidget()
+        self.setCentralWidget(self._tabs)
+
+        # --- Portfolio tab: QStackedWidget for stock view ↔ portfolio page navigation
         self._stack = QStackedWidget()
-        self.setCentralWidget(self._stack)
 
         stock_widget = QWidget()
         main_layout = QHBoxLayout(stock_widget)
@@ -86,6 +91,13 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.chart_panel, stretch=1)
         self._stack.addWidget(stock_widget)
 
+        # --- Explore tab
+        self.explore_panel = ExplorePanel()
+        self.explore_panel.add_to_portfolio.connect(self.add_stock_from_explore)
+
+        self._tabs.addTab(self._stack, "Portfolio")
+        self._tabs.addTab(self.explore_panel, "Explore")
+        self._tabs.currentChanged.connect(self._on_tab_changed)
 
         self.chart_panel.populate_stocks(self.cache.all_stocks())
         if len(self.cache.list_stocks()) == 0:
@@ -120,6 +132,27 @@ class MainWindow(QMainWindow):
             if new_theme != old_theme:
                 apply_palette(QApplication.instance(), new_theme)
                 self.chart_panel.apply_theme(new_theme)
+
+    def _on_tab_changed(self, index):
+        if index == 1:
+            self.explore_panel.refresh_if_empty()
+
+    def add_stock_from_explore(self, symbol):
+        if self.cache.has_stock(symbol):
+            QMessageBox.information(self, "Already in Portfolio", f"'{symbol}' is already in your portfolio.")
+            self._tabs.setCurrentIndex(0)
+            return
+        if not os.path.exists(self.csv_path):
+            os.makedirs(self.csv_path)
+        self._worker_symbol = symbol
+        self._worker_mode = "add"
+        self._worker = StockFetchWorker("add", symbol, self.csv_path, name=symbol)
+        self._worker.finished.connect(self._on_worker_finished)
+        self._worker.error.connect(self._on_worker_error)
+        self._set_controls_enabled(False)
+        self.statusBar().showMessage(f"Adding {symbol} to portfolio...")
+        self._worker.start()
+        self._tabs.setCurrentIndex(0)
 
     def add_new_stock_dialog(self):
         symbol, ok = QInputDialog.getText(self, "Add New Stock", "Enter stock symbol (e.g., AAPL):")
