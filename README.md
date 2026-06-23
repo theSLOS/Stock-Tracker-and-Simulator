@@ -10,14 +10,16 @@ A desktop stock portfolio viewer and predictor built with Python and PyQt6.
 
 ## Features
 
-- **Multi-user login** — register or log in; each user has their own portfolio and cached data
+- **Multi-user login** — branded card-style login and registration dialogs; each user has their own portfolio and cached data
 - **Live stock data** — historical price data fetched from Yahoo Finance via `yfinance`
-- **Interactive chart** — gradient price line with hover tooltip; configurable date range (1M / 3M / 6M / 1Y / All)
-- **Technical indicators** — toggle SMA 20, SMA 50, and EMA 20 overlays on the chart
+- **Interactive chart** — gradient price line with hover tooltip; compact bottom toolbar with date range buttons (1M / 3M / 6M / 1Y / All) on the left and indicator toggles on the right
+- **Technical indicators** — toggle SMA 20, SMA 50, and EMA 20 overlays on the chart; buttons highlight when active
 - **30-day prediction** — Meta's Prophet model draws a confidence band on the chart and emits a BUY / HOLD / SELL signal
 - **AI market analysis** — Claude scores a stock −10 to +10 with a plain-English summary, pros/cons, and insider trade context; results are cached per user for 24 hours
 - **Insider trades panel** — recent SEC insider transactions for the selected stock, sourced from Finnhub
-- **Portfolio tracker** — record positions (shares, cost basis, optional sell target); interactive animated donut chart with per-holding hover detail and gain/loss stats
+- **Portfolio tracker** — record positions (shares, cost basis, optional sell target); interactive animated donut chart with per-holding hover detail and gain/loss stats; performance card shows total cost, current value, gain/loss %, and distance to sell target
+- **Add Stock dialog** — card-style dialog matching the login aesthetic; shows Market Highlights (Top Gainers, Top Losers, Most Active) as clickable chips populated from the Explore cache; clicking a chip fills the symbol field
+- **Stock rename** — pencil button (✎) next to the stock name in the info panel lets you set a custom display name per holding; updates the dropdown combo immediately
 - **Market explorer** — Explore tab shows live Top Gainers, Top Losers, Most Active, and Biggest Movers across the full S&P 500 (~503 tickers), fetched fresh daily from Wikipedia and cached for the session; one click adds any stock to your portfolio
 - **User settings** — edit profile fields, change password (stored as PBKDF2-SHA256 hash), toggle dark/light theme; theme change applies instantly across every panel without restart
 
@@ -130,6 +132,7 @@ Stock-App/
 │   │   ├── stock_chart.py       # Self-contained pyqtgraph chart widget
 │   │   ├── explore_panel.py     # Explore tab — market screener tables
 │   │   ├── portfolio_page.py    # Full-window portfolio page with interactive donut chart
+│   │   ├── add_stock_dialog.py  # AddStockDialog — card-style add dialog with market highlight chips
 │   │   ├── ai_analysis_dialog.py
 │   │   └── settings_dialog.py
 │   ├── login_page.py

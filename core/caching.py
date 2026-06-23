@@ -70,6 +70,12 @@ class CacheManager:
             return False
         return (dt.now() - last_update).days < days
 
+    def rename_stock(self, symbol: str, new_name: str):
+        entry = self.data.get(symbol)
+        if entry is not None:
+            entry["name"] = new_name
+            self.save_cache()
+
     def update_stock_timestamp(self, symbol: str):
         entry = self.get_stock_data(symbol)
         if entry is not None:

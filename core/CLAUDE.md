@@ -30,6 +30,8 @@
 
 `dfpath` is **filename only** — always join with `csv_path` to get the full path. `ai_analysis` and `portfolio` are optional keys; absent until the user runs that feature. `sell_target` inside `portfolio` is also optional.
 
+**`CacheManager` key methods:** `set_stock_data(StockPackage)`, `get_stock_data(symbol)`, `rename_stock(symbol, new_name)` (updates `name` field + saves), `delete_stock(symbol, csv_path)`, `set_portfolio` / `get_portfolio` / `clear_portfolio`, `set_ai_analysis` / `get_ai_analysis` / `is_ai_analysis_fresh`.
+
 ---
 
 ## User profile format (`Users/<username>/profile.json`)

@@ -38,14 +38,15 @@ ui/                            # All PyQt6 UI components
     mainwindow/                # Main app window package (see ui/mainwindow/CLAUDE.md)
         main_window.py         # MainWindow (QMainWindow) + StockFetchWorker + apply_dark/light_theme()
         info_panel.py          # InfoPanel (QWidget) — left panel (profile row, stock header, 3 tabs); theme-aware via set_theme()
-        chart_panel.py         # ChartPanel (QWidget) — right panel
-        stock_chart.py         # StockChart (QWidget) — self-contained chart
+        chart_panel.py         # ChartPanel (QWidget) — right panel; top combo row (+ Add Stock, dropdown, Delete); single bottom toolbar (date range buttons 1Y/6M/3M/1M/All on left, SMA/EMA indicator toggles on right); apply_theme() rebuilds stylesheet from get_tokens()
+        stock_chart.py         # StockChart (QWidget) — self-contained chart; calls autoRange() after every _redraw() so date-range changes snap the viewport
         explore_panel.py       # ExplorePanel (QWidget) — market explorer tab; theme-aware via set_theme()
         portfolio_page.py      # UserPage (QWidget) — full-window portfolio page; receives theme= at construction
+        add_stock_dialog.py    # AddStockDialog (QDialog) — card-style add dialog; reads explore cache for market highlight chips; returns symbol via get_symbol()
         ai_analysis_dialog.py  # AIAnalysisDialog (QDialog); receives theme= at construction
         settings_dialog.py     # UserSettingsDialog (QDialog)
-    login_page.py              # LoginDialog (QDialog)
-    register_page.py           # RegisterDialog (QDialog)
+    login_page.py              # LoginDialog (QDialog) — fixed 440×540 card-on-dark layout; styled with get_tokens("dark"); always shown with dark theme regardless of user preference
+    register_page.py           # RegisterDialog (QDialog) — matching 440×560 card design to login_page; opened from login footer
     theme.py                   # Centralised token system: THEMES dict + _FONT_SCALE + _SIGNAL_COLORS; get_tokens(theme) → merged dict used by every UI component; apply_palette() sets Qt QPalette
 
 core/                          # Business logic, data, background workers (see core/CLAUDE.md)
@@ -79,6 +80,8 @@ Users/
 7. AI analysis runs in `AIAnalysisWorker` (QThread) — fetches insider trades from Finnhub then calls Claude API
 8. Insider trades panel is populated by `SenateWorker` (QThread), owned by `InfoPanel`, on every stock load
 9. Explore tab: `ExploreWorker` (QThread) starts in the background at login via `start_background_load()`. It checks `Users/explore_cache.json` first — if today's data is already cached it emits immediately; otherwise it fetches the S&P 500 ticker list from Wikipedia (~503 tickers, falls back to a hardcoded 58-ticker curated list on failure), batch-downloads 5 days of data via `yf.download()`, saves the results to the daily cache, then emits. Results are sorted into Top Gainers / Top Losers / Most Active / Biggest Movers tables. The manual Refresh button always bypasses the cache and re-downloads. "+ Add" button emits `add_to_portfolio` → `MainWindow.add_stock_from_explore()` → `StockFetchWorker` (same path as manual add)
+10. "+ Add Stock" button opens `AddStockDialog` — a card-style dialog that reads `Users/explore_cache.json` directly at construction time and renders Top Gainers, Top Losers, and Most Active as clickable chip buttons. Clicking a chip fills the symbol field. On accept, `MainWindow.add_new_stock_dialog()` launches `StockFetchWorker` with the entered symbol.
+11. Stock rename: `InfoPanel` exposes a `stock_renamed = pyqtSignal(str, str)` signal. A small `✎` pencil button appears beside the stock name when a stock is loaded; clicking it opens a `QInputDialog` pre-filled with the current name. On confirm, `CacheManager.rename_stock()` updates the cache and the signal is emitted → `MainWindow._on_stock_renamed()` refreshes the combo dropdown.
 
 ### Key design decisions
 - **Cache stores only filenames** (`AAPL.csv`), not absolute paths. Full path reconstructed as `os.path.join(csv_path, filename)` at runtime — keeps the project portable.
@@ -87,7 +90,7 @@ Users/
 - **`QTabWidget` top-level navigation** — Tab 0: "Portfolio" (contains a `QStackedWidget` for stock view ↔ portfolio page); Tab 1: "Explore" (`ExplorePanel`). `ExploreWorker` is started at login via `start_background_load()` so data is usually ready before the user opens the tab. `refresh_if_empty()` on tab switch acts as a fallback if the background load hasn't fired yet.
 - **`QStackedWidget` within Portfolio tab** — index 0: stock view (InfoPanel + ChartPanel). Index 1: `UserPage`, recreated fresh on every navigation so data is always current.
 - **No menu bar** — settings accessed via the User Page (profile row in InfoPanel).
-- **Centralised theme tokens** — `theme.py` is the single source of truth for all colours and font sizes. `get_tokens(theme)` merges `THEMES[theme]` + `_FONT_SCALE` + `_SIGNAL_COLORS` into one flat dict. Every UI component imports `get_tokens` and uses only token keys — no hardcoded hex values or pixel sizes. Persistent widgets (`InfoPanel`, `ExplorePanel`) expose `set_theme(theme)` and call `_apply_theme_styles(tokens)` on theme switch; one-shot widgets (`UserPage`, `AIAnalysisDialog`) receive `theme=` at construction. `MainWindow.open_settings()` is the single call site that triggers `apply_palette` + `set_theme` on all persistent panels.
+- **Centralised theme tokens** — `theme.py` is the single source of truth for all colours and font sizes. `get_tokens(theme)` merges `THEMES[theme]` + `_FONT_SCALE` + `_SIGNAL_COLORS` into one flat dict. Every UI component imports `get_tokens` and uses only token keys — **no hardcoded hex values or pixel sizes anywhere in UI files**. Pre-login dialogs (`LoginDialog`, `RegisterDialog`) call `get_tokens("dark")` directly since the user hasn't chosen a theme yet. Persistent widgets (`InfoPanel`, `ExplorePanel`, `ChartPanel`) expose `set_theme(theme)` / `apply_theme(theme)` and rebuild their stylesheets on theme switch; one-shot widgets (`UserPage`, `AIAnalysisDialog`) receive `theme=` at construction. `MainWindow.open_settings()` is the single call site that triggers `apply_palette` + `set_theme` on all persistent panels.
 
 ---
 

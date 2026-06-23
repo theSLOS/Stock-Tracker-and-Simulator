@@ -210,6 +210,7 @@ class StockChart(QWidget):
         self._price_curve.setData(self.x_data, self.y_data, fillLevel=float(self.y_data.min()))
         self._stack.setCurrentWidget(self.plot_widget)
         self._redraw_indicators()
+        self.plot_widget.autoRange()
 
     def _draw_indicator(self, key: str):
         entry = self._indicators[key]

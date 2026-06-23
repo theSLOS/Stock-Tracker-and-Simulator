@@ -11,7 +11,7 @@ from .explore_panel import ExplorePanel
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
-    QHBoxLayout, QVBoxLayout, QTabWidget, QStackedWidget, QMessageBox, QInputDialog
+    QHBoxLayout, QVBoxLayout, QTabWidget, QStackedWidget, QMessageBox,
 )
 from PyQt6.QtCore import QThread, pyqtSignal
 
@@ -86,6 +86,7 @@ class MainWindow(QMainWindow):
         self.info_panel.predict_requested.connect(self.run_prediction)
         self.info_panel.ai_requested.connect(self.run_ai_analysis)
         self.info_panel.profile_clicked.connect(self.open_portfolio)
+        self.info_panel.stock_renamed.connect(self._on_stock_renamed)
         self.chart_panel.stock_changed.connect(self.load_stock)
         self.chart_panel.add_stock_requested.connect(self.add_new_stock_dialog)
         self.chart_panel.delete_stock_requested.connect(self.on_delete_stock)
@@ -163,25 +164,30 @@ class MainWindow(QMainWindow):
         self._tabs.setCurrentIndex(0)
 
     def add_new_stock_dialog(self):
-        symbol, ok = QInputDialog.getText(self, "Add New Stock", "Enter stock symbol (e.g., AAPL):")
-        if not ok or not symbol.strip():
+        from .add_stock_dialog import AddStockDialog
+        current_theme = self.user_profile.get("preferences", {}).get("theme", "dark")
+        dialog = AddStockDialog(theme=current_theme, parent=self)
+        if not dialog.exec():
             return
-        symbol = symbol.strip().upper()
+        symbol = dialog.get_symbol()
+        if not symbol:
+            return
         if self.cache.has_stock(symbol):
             QMessageBox.information(self, "Stock Exists", f"'{symbol}' is already in your portfolio.")
             return
-        name, ok = QInputDialog.getText(self, "Add New Stock", "Enter stock name (optional):")
-        name = name.strip() if ok and name.strip() else symbol
         if not os.path.exists(self.csv_path):
             os.makedirs(self.csv_path)
         self._worker_symbol = symbol
         self._worker_mode = "add"
-        self._worker = StockFetchWorker("add", symbol, self.csv_path, name=name)
+        self._worker = StockFetchWorker("add", symbol, self.csv_path, name=symbol)
         self._worker.finished.connect(self._on_worker_finished)
         self._worker.error.connect(self._on_worker_error)
         self._set_controls_enabled(False)
         self.statusBar().showMessage(f"Fetching data for {symbol}...")
         self._worker.start()
+
+    def _on_stock_renamed(self, symbol, new_name):
+        self.chart_panel.populate_stocks(self.cache.all_stocks(), select_symbol=symbol)
 
     def on_delete_stock(self):
         symbol = self.chart_panel.current_symbol()
