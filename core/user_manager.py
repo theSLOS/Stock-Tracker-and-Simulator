@@ -1,7 +1,29 @@
+import hashlib
 import os
 import json
+import secrets
 
 USERS_DIR = os.path.join(os.path.dirname(__file__), '..', 'Users')
+
+_HASH_PREFIX = "pbkdf2sha256"
+_ITERATIONS = 260_000
+
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), _ITERATIONS)
+    return f"{_HASH_PREFIX}:{_ITERATIONS}:{salt}:{dk.hex()}"
+
+
+def verify_password(stored: str, provided: str) -> bool:
+    if not stored.startswith(_HASH_PREFIX + ":"):
+        return stored == provided  # legacy plain-text
+    parts = stored.split(":")
+    if len(parts) != 4:
+        return False
+    _, iterations, salt, stored_hash = parts
+    dk = hashlib.pbkdf2_hmac("sha256", provided.encode(), salt.encode(), int(iterations))
+    return secrets.compare_digest(dk.hex(), stored_hash)
 
 
 def load_users():
@@ -25,7 +47,7 @@ def create_user(username, password):
     os.makedirs(user_dir, exist_ok=True)
     profile = {
         "username": username,
-        "password": password,
+        "password": hash_password(password),
         "preferences": {
             "theme": "dark",
             "default_stock": "AAPL"

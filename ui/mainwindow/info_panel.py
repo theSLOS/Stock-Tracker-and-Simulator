@@ -642,8 +642,9 @@ class InfoPanel(QWidget):
             arrow      = "▲" if is_buy else ("▼" if is_sell else "·")
             detail     = f"{date}" + (f"  ·  {amount}" if amount else "")
             entry = QLabel(
-                f'<span style="color:{color};">{arrow} {trade_type}</span>  {name}'
-                f'<br><span style="color:{t["label_faint"]}; font-size:{t["font_small"]};">{detail}</span>'
+                f'<span style="color:{color};">{arrow} {trade_type}</span>'
+                f'  <span style="color:{t["label_secondary"]};">{name}</span>'
+                f'<br><span style="color:{t["label_muted"]}; font-size:{t["font_small"]};">{detail}</span>'
             )
             entry.setTextFormat(Qt.TextFormat.RichText)
             entry.setWordWrap(True)

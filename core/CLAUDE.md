@@ -37,7 +37,7 @@
 ```json
 {
     "username": "user3",
-    "password": "password",
+    "password": "pbkdf2sha256:260000:<salt>:<hex-digest>",
     "email": "user@example.com",
     "phone": "555-1234",
     "preferences": {
@@ -48,6 +48,8 @@
 ```
 
 `email` and `phone` are optional. Profile files **are** committed to git. Cache files and CSVs are gitignored.
+
+Passwords are hashed with PBKDF2-HMAC-SHA256 (260 000 iterations) via `hash_password()` in `user_manager.py`. Use `verify_password(stored, provided)` for all auth checks — never compare the stored string directly. The legacy plain-text path (`stored == provided`) is still handled as a fallback for any old profiles that pre-date the hash update.
 
 ---
 

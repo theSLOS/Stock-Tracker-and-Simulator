@@ -7,3 +7,4 @@ python-dotenv
 prophet
 anthropic
 requests
+lxml

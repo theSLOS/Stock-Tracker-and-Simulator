@@ -12,7 +12,7 @@ import os; print(os.getenv("ANTHROPIC_API_KEY"))
 def _auto_login(username, password):
     users = user_manager.load_users()
     profile = users.get(username)
-    if profile and profile.get("password") == password:
+    if profile and user_manager.verify_password(profile.get("password", ""), password):
         return profile
     return None
 

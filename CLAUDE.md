@@ -51,7 +51,7 @@ ui/                            # All PyQt6 UI components
 core/                          # Business logic, data, background workers (see core/CLAUDE.md)
     stock_handler.py           # yfinance download, add_new_stock(), calculate_SMA/EMA()
     caching.py                 # CacheManager — per-user JSON cache
-    user_manager.py            # load_users(), create_user(), get_user_profile()
+    user_manager.py            # load_users(), create_user(), get_user_profile(), save_user_profile(), hash_password(), verify_password()
     stock_model.py             # StockPackage dataclass (symbol, name, dfpath, lastUpdate, df)
     prediction_worker.py       # PredictionWorker (QThread) — Prophet
     ai_analysis_worker.py      # AIAnalysisWorker (QThread) — Finnhub + Claude API
@@ -60,7 +60,7 @@ core/                          # Business logic, data, background workers (see c
 
 Users/
     <username>/
-        profile.json           # {"username", "password", "email", "phone", "preferences": {"theme", "default_stock"}}
+        profile.json           # {"username", "password" (pbkdf2sha256 hash), "email", "phone", "preferences": {"theme", "default_stock"}}
         cache                  # JSON file (gitignored) — maps symbol → {name, dfpath, lastUpdate, ai_analysis?, portfolio?}
         csvFiles/              # Downloaded CSVs (gitignored) — one per stock, e.g. AAPL.csv
 ```

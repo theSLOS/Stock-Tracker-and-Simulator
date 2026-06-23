@@ -28,8 +28,14 @@ class LoginDialog(QDialog):
 
     def try_login(self):
         users = user_manager.load_users()
-        user = users.get(self.username_input.text())
-        if user and user["password"] == self.password_input.text():
+        username = self.username_input.text()
+        password = self.password_input.text()
+        user = users.get(username)
+        if user and user_manager.verify_password(user["password"], password):
+            # Migrate legacy plain-text passwords to hashed on first login
+            if not user["password"].startswith("pbkdf2sha256:"):
+                user["password"] = user_manager.hash_password(password)
+                user_manager.save_user_profile(username, user)
             self.accept()
         else:
             QMessageBox.warning(self, "Login Failed", "Invalid username or password.")

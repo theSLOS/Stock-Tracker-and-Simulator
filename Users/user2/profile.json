@@ -1,6 +1,6 @@
 {
     "username": "user2",
-    "password": "password",
+    "password": "pbkdf2sha256:260000:c7081e15738760c5c1da8c0c70769f7d:ad2e063364df3519030fc5106a9e0cc8585ecc3c905fa8670b9ffecefa9d8e86",
     "preferences": {
         "theme": "dark",
         "default_stock": "AAPL"

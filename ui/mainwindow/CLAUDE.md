@@ -67,7 +67,7 @@ Full-window page, takes over `QStackedWidget` index 1. Recreated fresh on every 
   - Hover: segment explodes outward with a 3-layer color glow; centre text switches from total value to that holding's symbol / value / portfolio % / gain-loss
   - Bidirectional legend sync: hovering a segment highlights the matching legend row in its segment color, and vice versa
   - Empty state shown if no positions recorded
-- **Summary stats** — total cost, current value, total gain/loss, avg daily % change (weighted by position size)
+- **Summary stats** — total cost, current value, total gain/loss, avg daily % change (weighted by current position value, calculated from each holding's `purchase_date` — not the full CSV history)
 
 Signals: `back_requested`, `settings_requested` — connected by `MainWindow`.
 

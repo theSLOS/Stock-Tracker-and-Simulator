@@ -19,7 +19,7 @@ A desktop stock portfolio viewer and predictor built with Python and PyQt6.
 - **Insider trades panel** — recent SEC insider transactions for the selected stock, sourced from Finnhub
 - **Portfolio tracker** — record positions (shares, cost basis, optional sell target); interactive animated donut chart with per-holding hover detail and gain/loss stats
 - **Market explorer** — Explore tab shows live Top Gainers, Top Losers, Most Active, and Biggest Movers across the full S&P 500 (~503 tickers), fetched fresh daily from Wikipedia and cached for the session; one click adds any stock to your portfolio
-- **User settings** — edit profile fields, change password, toggle dark/light theme; theme change applies instantly across every panel without restart
+- **User settings** — edit profile fields, change password (stored as PBKDF2-SHA256 hash), toggle dark/light theme; theme change applies instantly across every panel without restart
 
 ---
 

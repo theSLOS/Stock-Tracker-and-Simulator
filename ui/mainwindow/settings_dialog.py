@@ -76,7 +76,7 @@ class UserSettingsDialog(QDialog):
         new = self.new_pw.text()
         confirm = self.confirm_pw.text()
         if cur or new or confirm:
-            if cur != profile.get("password", ""):
+            if not user_manager.verify_password(profile.get("password", ""), cur):
                 QMessageBox.warning(self, "Error", "Current password is incorrect.")
                 return
             if not new:
@@ -85,7 +85,7 @@ class UserSettingsDialog(QDialog):
             if new != confirm:
                 QMessageBox.warning(self, "Error", "New passwords do not match.")
                 return
-            profile["password"] = new
+            profile["password"] = user_manager.hash_password(new)
 
         user_manager.save_user_profile(self.username, profile)
         self.user_profile.update(profile)
