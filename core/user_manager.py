@@ -67,3 +67,17 @@ def save_user_profile(username, profile):
     profile_path = os.path.join(get_user_dir(username), 'profile.json')
     with open(profile_path, 'w') as f:
         json.dump(profile, f, indent=4)
+
+
+def get_avatar_path(username: str) -> str:
+    return os.path.join(get_user_dir(username), "avatar.png")
+
+
+def rename_user(old_username: str, new_username: str) -> None:
+    """Rename user folder and update profile.json. Raises ValueError if new name taken."""
+    if os.path.exists(get_user_dir(new_username)):
+        raise ValueError(f"Username '{new_username}' is already taken.")
+    os.rename(get_user_dir(old_username), get_user_dir(new_username))
+    profile = get_user_profile(new_username)
+    profile["username"] = new_username
+    save_user_profile(new_username, profile)

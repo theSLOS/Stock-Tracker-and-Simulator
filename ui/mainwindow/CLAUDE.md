@@ -130,7 +130,7 @@ Constructed as `UserSettingsDialog(user_profile: dict, theme: str = "dark", pare
 
 **Pages (nav order):**
 
-1. **Profile** — username read-only chip (`QLabel#username_chip`, `alternate_base` background), EMAIL and PHONE `QLineEdit` fields pre-filled from `user_profile`. Saved by the global Save button.
+1. **Profile** — avatar photo picker (`_AvatarPreview`, 60 px circular widget + "Change Photo" button → `QFileDialog` → scales/center-crops to 256 × 256 PNG saved at `user_manager.get_avatar_path(username)`; emits `avatar_changed`). USERNAME `QLineEdit` + "Apply" button → `_change_username()`: validates 3–20 chars `[a-zA-Z0-9_]`, calls `user_manager.rename_user()`, emits `username_changed(str)`, flashes inline status for 3 s. EMAIL and PHONE fields saved by the global Save button.
 
 2. **Appearance** — pill-style Dark / Light toggle: two joined `QPushButton` (`#btn_theme_l` / `#btn_theme_r`) with shared borders and matching checked/unchecked states. Saved by the global Save button.
 
@@ -138,4 +138,6 @@ Constructed as `UserSettingsDialog(user_profile: dict, theme: str = "dark", pare
 
 4. **API Keys** — one `QFrame#key_row` card per key (Anthropic, Finnhub). Each row shows: icon (highlight color), display name, a status chip ("✓ Set" in `buy_color` / "✗ Not set" in `sell_color`), an "Update" `QPushButton#btn_key_update` (opens `ApiKeyDialog`; refreshes chip on accept), and a "Delete" `QPushButton#btn_key_delete` (calls `key_manager.delete_key()`; refreshes chip; hidden when key is not set). All API key actions save immediately — the global Save button does **not** affect them.
 
-**Save logic (`_save()`):** copies `user_profile`, updates email + phone + theme preference, calls `user_manager.save_user_profile()`, updates `self.user_profile` in-place, then `self.accept()`. `MainWindow.open_settings()` reads the updated theme and triggers `apply_palette()` + `set_theme()` on all persistent panels — no changes needed in `main_window.py`.
+**Signals:** `username_changed = pyqtSignal(str)` and `avatar_changed = pyqtSignal()` — connected in `MainWindow.open_settings()` before `exec()`. `_on_username_changed(new)` updates `self.username`, window title, `cache.path`, `csv_path`, and calls `info_panel.set_username()`. `_on_avatar_changed()` calls `info_panel.refresh_avatar()`.
+
+**Save logic (`_save()`):** copies `user_profile`, updates email + phone + theme preference, calls `user_manager.save_user_profile()`, updates `self.user_profile` in-place, then `self.accept()`. `MainWindow.open_settings()` reads the updated theme and triggers `apply_palette()` + `set_theme()` on all persistent panels.

@@ -10,6 +10,7 @@ cache/
 Users/*/cache
 Users/*/api_keys.json
 .env
+*.png
 
 # C extensions
 *.so

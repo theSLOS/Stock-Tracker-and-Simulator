@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
 )
 
 from ..theme import get_tokens
+from core import user_manager
 
 _PIE_COLORS = [
     "#6495ED", "#32CD32", "#FF6347", "#FFD700",
@@ -20,24 +21,37 @@ _PIE_COLORS = [
 
 
 class _AvatarWidget(QWidget):
-    def __init__(self, username, size=68, parent=None):
+    def __init__(self, username, size=68, avatar_path=None, parent=None):
         super().__init__(parent)
         self._initial = username[0].upper() if username else "?"
         self.setFixedSize(size, size)
         self._size = size
+        self._pixmap = None
+        if avatar_path and os.path.exists(avatar_path):
+            self._pixmap = QPixmap(avatar_path).scaled(
+                size, size,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation,
+            )
 
     def paintEvent(self, _event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setBrush(QColor("#2a82da"))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.drawEllipse(0, 0, self._size, self._size)
-        font = QFont()
-        font.setPixelSize(int(self._size * 0.40))
-        font.setBold(True)
-        p.setFont(font)
-        p.setPen(QColor("#ffffff"))
-        p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self._initial)
+        if self._pixmap and not self._pixmap.isNull():
+            clip = QPainterPath()
+            clip.addEllipse(0.0, 0.0, float(self._size), float(self._size))
+            p.setClipPath(clip)
+            p.drawPixmap(0, 0, self._size, self._size, self._pixmap)
+        else:
+            p.setBrush(QColor("#2a82da"))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.drawEllipse(0, 0, self._size, self._size)
+            font = QFont()
+            font.setPixelSize(int(self._size * 0.40))
+            font.setBold(True)
+            p.setFont(font)
+            p.setPen(QColor("#ffffff"))
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self._initial)
 
 
 def _make_segment_path(cx, cy, outer_r, inner_r, start_angle, span_angle):
@@ -379,7 +393,7 @@ class UserPage(QWidget):
         header_row = QHBoxLayout()
         header_row.setSpacing(16)
         header_row.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-        header_row.addWidget(_AvatarWidget(username))
+        header_row.addWidget(_AvatarWidget(username, avatar_path=user_manager.get_avatar_path(username)))
 
         name_col = QVBoxLayout()
         name_col.setSpacing(3)

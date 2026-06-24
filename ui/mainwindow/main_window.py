@@ -134,6 +134,8 @@ class MainWindow(QMainWindow):
         from .settings_dialog import UserSettingsDialog
         old_theme = self.user_profile.get("preferences", {}).get("theme", "dark")
         dialog = UserSettingsDialog(self.user_profile, theme=old_theme, parent=self)
+        dialog.username_changed.connect(self._on_username_changed)
+        dialog.avatar_changed.connect(self._on_avatar_changed)
         if dialog.exec():
             new_theme = self.user_profile.get("preferences", {}).get("theme", "dark")
             if new_theme != old_theme:
@@ -141,6 +143,17 @@ class MainWindow(QMainWindow):
                 self.chart_panel.apply_theme(new_theme)
                 self.info_panel.set_theme(new_theme)
                 self.explore_panel.set_theme(new_theme)
+
+    def _on_username_changed(self, new_username: str):
+        from core.user_manager import get_user_dir
+        self.username = new_username
+        self.setWindowTitle(f"Stock Viewer - User: {new_username}")
+        self.cache.path = os.path.join(get_user_dir(new_username), "cache")
+        self.csv_path = os.path.join(get_user_dir(new_username), "csvFiles")
+        self.info_panel.set_username(new_username)
+
+    def _on_avatar_changed(self):
+        self.info_panel.refresh_avatar()
 
     def _on_tab_changed(self, index):
         if index == 1:

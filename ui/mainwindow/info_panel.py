@@ -1,34 +1,60 @@
+import os
+
 import pandas as pd
 
-from PyQt6.QtGui import QColor, QFont, QPainter
+from PyQt6.QtGui import QColor, QFont, QPainter, QPainterPath, QPixmap
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFrame, QScrollArea, QTabWidget, QLineEdit, QInputDialog,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 
+from core import user_manager
 from ..theme import get_tokens
 
 
 class _MiniAvatar(QWidget):
-    def __init__(self, initial, size=28, parent=None):
+    def __init__(self, initial, size=28, avatar_path=None, parent=None):
         super().__init__(parent)
         self._initial = initial
         self.setFixedSize(size, size)
         self._size = size
+        self._avatar_path = avatar_path
+        self._pixmap = self._load_pixmap()
+
+    def _load_pixmap(self):
+        if self._avatar_path and os.path.exists(self._avatar_path):
+            return QPixmap(self._avatar_path).scaled(
+                self._size, self._size,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        return None
+
+    def refresh(self, avatar_path=None):
+        if avatar_path is not None:
+            self._avatar_path = avatar_path
+        self._pixmap = self._load_pixmap()
+        self.update()
 
     def paintEvent(self, _event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setBrush(QColor("#2a82da"))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.drawEllipse(0, 0, self._size, self._size)
-        font = QFont()
-        font.setPixelSize(int(self._size * 0.42))
-        font.setBold(True)
-        p.setFont(font)
-        p.setPen(QColor("#ffffff"))
-        p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self._initial)
+        if self._pixmap and not self._pixmap.isNull():
+            clip = QPainterPath()
+            clip.addEllipse(0.0, 0.0, float(self._size), float(self._size))
+            p.setClipPath(clip)
+            p.drawPixmap(0, 0, self._size, self._size, self._pixmap)
+        else:
+            p.setBrush(QColor("#2a82da"))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.drawEllipse(0, 0, self._size, self._size)
+            font = QFont()
+            font.setPixelSize(int(self._size * 0.42))
+            font.setBold(True)
+            p.setFont(font)
+            p.setPen(QColor("#ffffff"))
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self._initial)
 
 
 class _ProfileRow(QWidget):
@@ -49,7 +75,7 @@ class _ProfileRow(QWidget):
         },
     }
 
-    def __init__(self, initial, username, theme="dark", parent=None):
+    def __init__(self, initial, username, theme="dark", avatar_path=None, parent=None):
         super().__init__(parent)
         self._theme = theme
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -60,15 +86,20 @@ class _ProfileRow(QWidget):
         box_row = QHBoxLayout(self._name_box)
         box_row.setContentsMargins(8, 6, 8, 6)
         box_row.setSpacing(8)
-        box_row.addWidget(_MiniAvatar(initial))
-        name = QLabel(username)
-        name.setStyleSheet("font-size: 12px; font-weight: bold;")
-        box_row.addWidget(name)
+        self._avatar = _MiniAvatar(initial, avatar_path=avatar_path)
+        box_row.addWidget(self._avatar)
+        self._name_lbl = QLabel(username)
+        self._name_lbl.setStyleSheet("font-size: 12px; font-weight: bold;")
+        box_row.addWidget(self._name_lbl)
         box_row.addStretch()
         chevron = QLabel("❯")
         chevron.setStyleSheet("font-size: 13px; color: #7aafd4;")
         box_row.addWidget(chevron)
         outer.addWidget(self._name_box)
+
+    def set_username(self, new_username: str, avatar_path: str | None = None):
+        self._name_lbl.setText(new_username)
+        self._avatar.refresh(avatar_path)
 
     def set_theme(self, theme):
         self._theme = theme
@@ -117,7 +148,8 @@ class InfoPanel(QWidget):
         layout.setSpacing(4)
 
         initial = username[0].upper() if username else "?"
-        self._profile_row = _ProfileRow(initial, username, theme=theme)
+        avatar_path = user_manager.get_avatar_path(username)
+        self._profile_row = _ProfileRow(initial, username, theme=theme, avatar_path=avatar_path)
         self._profile_row.clicked.connect(self.profile_clicked)
         layout.addWidget(self._profile_row)
 
@@ -393,6 +425,15 @@ class InfoPanel(QWidget):
         return scroll
 
     # ------------------------------------------------------------------ public
+
+    def set_username(self, new_username: str):
+        self._username = new_username
+        avatar_path = user_manager.get_avatar_path(new_username)
+        self._profile_row.set_username(new_username, avatar_path)
+
+    def refresh_avatar(self):
+        avatar_path = user_manager.get_avatar_path(self._username)
+        self._profile_row.set_username(self._username, avatar_path)
 
     def set_theme(self, theme):
         self._theme = theme

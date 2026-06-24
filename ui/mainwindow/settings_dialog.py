@@ -1,9 +1,13 @@
+import os
+import re
+
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QDialogButtonBox, QMessageBox, QPushButton, QFrame,
-    QStackedWidget, QWidget,
+    QStackedWidget, QWidget, QFileDialog,
 )
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QColor, QFont, QPainter, QPainterPath, QPixmap, QImage
 
 from core import user_manager, key_manager
 from ui.theme import get_tokens
@@ -13,6 +17,57 @@ _KEYS = [
     ("ANTHROPIC_API_KEY", "✦", "Anthropic API Key"),
     ("FINNHUB_API_KEY",   "⬡", "Finnhub API Key"),
 ]
+
+_USERNAME_RE = re.compile(r'^[a-zA-Z0-9_]{3,20}$')
+
+
+class _AvatarPreview(QWidget):
+    SIZE = 60
+
+    def __init__(self, username: str, avatar_path: str | None = None, parent=None):
+        super().__init__(parent)
+        self._initial = username[0].upper() if username else "?"
+        self.setFixedSize(self.SIZE, self.SIZE)
+        self._avatar_path = avatar_path
+        self._pixmap = self._load_pixmap()
+
+    def _load_pixmap(self):
+        if self._avatar_path and os.path.exists(self._avatar_path):
+            return QPixmap(self._avatar_path).scaled(
+                self.SIZE, self.SIZE,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        return None
+
+    def refresh(self, avatar_path: str | None = None):
+        if avatar_path is not None:
+            self._avatar_path = avatar_path
+        self._pixmap = self._load_pixmap()
+        self.update()
+
+    def set_initial(self, username: str):
+        self._initial = username[0].upper() if username else "?"
+        self.update()
+
+    def paintEvent(self, _event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if self._pixmap and not self._pixmap.isNull():
+            clip = QPainterPath()
+            clip.addEllipse(0.0, 0.0, float(self.SIZE), float(self.SIZE))
+            p.setClipPath(clip)
+            p.drawPixmap(0, 0, self.SIZE, self.SIZE, self._pixmap)
+        else:
+            p.setBrush(QColor("#2a82da"))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.drawEllipse(0, 0, self.SIZE, self.SIZE)
+            font = QFont()
+            font.setPixelSize(int(self.SIZE * 0.42))
+            font.setBold(True)
+            p.setFont(font)
+            p.setPen(QColor("#ffffff"))
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self._initial)
 
 
 def _build_style(t: dict) -> str:
@@ -117,6 +172,29 @@ def _build_style(t: dict) -> str:
             background: {t['separator']};
             color: {t['text']};
         }}
+        QPushButton#btn_apply_username {{
+            background: {t['highlight']};
+            color: #ffffff;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 14px;
+            font-size: {t['font_small']};
+            font-weight: bold;
+        }}
+        QPushButton#btn_apply_username:hover {{
+            background: {t['highlight']}cc;
+        }}
+        QPushButton#btn_change_photo {{
+            background: transparent;
+            color: {t['highlight']};
+            border: 1px solid {t['highlight']};
+            border-radius: 6px;
+            padding: 5px 12px;
+            font-size: {t['font_small']};
+        }}
+        QPushButton#btn_change_photo:hover {{
+            background: {t['highlight']}22;
+        }}
         QPushButton#btn_save_pw {{
             background: {t['highlight']};
             color: #ffffff;
@@ -182,6 +260,9 @@ def _build_style(t: dict) -> str:
 
 
 class UserSettingsDialog(QDialog):
+    username_changed = pyqtSignal(str)
+    avatar_changed   = pyqtSignal()
+
     def __init__(self, user_profile: dict, theme: str = "dark", parent=None):
         super().__init__(parent)
         self.user_profile = user_profile
@@ -277,6 +358,7 @@ class UserSettingsDialog(QDialog):
     # ── Pages ──
 
     def _make_profile_page(self) -> QWidget:
+        t = self._tokens
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -287,17 +369,51 @@ class UserSettingsDialog(QDialog):
         layout.addWidget(title)
         layout.addSpacing(16)
 
-        chip_row = QHBoxLayout()
-        chip_row.setContentsMargins(0, 0, 0, 0)
-        user_key = QLabel("USERNAME")
-        user_key.setObjectName("field_lbl")
-        chip_row.addWidget(user_key)
-        chip_row.addStretch()
-        chip = QLabel(self.username)
-        chip.setObjectName("username_chip")
-        chip_row.addWidget(chip)
-        layout.addLayout(chip_row)
+        # Avatar row
+        avatar_row = QHBoxLayout()
+        avatar_row.setContentsMargins(0, 0, 0, 0)
+        avatar_row.setSpacing(14)
+        self._avatar_preview = _AvatarPreview(
+            self.username,
+            avatar_path=user_manager.get_avatar_path(self.username),
+        )
+        avatar_row.addWidget(self._avatar_preview)
+        change_photo_btn = QPushButton("Change Photo")
+        change_photo_btn.setObjectName("btn_change_photo")
+        change_photo_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        change_photo_btn.clicked.connect(self._pick_avatar)
+        photo_col = QVBoxLayout()
+        photo_col.setSpacing(4)
+        photo_col.addWidget(change_photo_btn)
+        photo_hint = QLabel("JPG, PNG, WEBP")
+        photo_hint.setStyleSheet(f"color: {t['label_muted']}; font-size: {t['font_micro']};")
+        photo_col.addWidget(photo_hint)
+        photo_col.addStretch()
+        avatar_row.addLayout(photo_col)
+        avatar_row.addStretch()
+        layout.addLayout(avatar_row)
         layout.addSpacing(16)
+
+        # Username row
+        uname_lbl = QLabel("USERNAME")
+        uname_lbl.setObjectName("field_lbl")
+        layout.addWidget(uname_lbl)
+        layout.addSpacing(4)
+        uname_row = QHBoxLayout()
+        uname_row.setSpacing(8)
+        self._username_input = QLineEdit(self.username)
+        uname_row.addWidget(self._username_input)
+        apply_btn = QPushButton("Apply")
+        apply_btn.setObjectName("btn_apply_username")
+        apply_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        apply_btn.clicked.connect(self._change_username)
+        uname_row.addWidget(apply_btn)
+        layout.addLayout(uname_row)
+        layout.addSpacing(4)
+        self._uname_status = QLabel("")
+        self._uname_status.setObjectName("field_lbl")
+        layout.addWidget(self._uname_status)
+        layout.addSpacing(12)
 
         email_lbl = QLabel("EMAIL")
         email_lbl.setObjectName("field_lbl")
@@ -473,6 +589,63 @@ class UserSettingsDialog(QDialog):
         self._light_btn.setChecked(theme == "light")
 
     # ── Actions ──
+
+    def _pick_avatar(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Choose Photo", "",
+            "Images (*.png *.jpg *.jpeg *.webp *.bmp)",
+        )
+        if not path:
+            return
+        img = QImage(path)
+        if img.isNull():
+            return
+        img = img.scaled(
+            256, 256,
+            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        # Crop to centered 256×256
+        x = (img.width() - 256) // 2
+        y = (img.height() - 256) // 2
+        img = img.copy(x, y, 256, 256)
+        dest = user_manager.get_avatar_path(self.username)
+        img.save(dest, "PNG")
+        self._avatar_preview.refresh(dest)
+        self.avatar_changed.emit()
+
+    def _change_username(self):
+        t = self._tokens
+        new_name = self._username_input.text().strip()
+        if not new_name or new_name == self.username:
+            return
+        if not _USERNAME_RE.match(new_name):
+            self._show_uname_status(
+                "3–20 chars: letters, numbers, underscore only",
+                t["sell_color"],
+            )
+            return
+        try:
+            user_manager.rename_user(self.username, new_name)
+        except ValueError as e:
+            self._show_uname_status(str(e), t["sell_color"])
+            return
+        self.username = new_name
+        self.user_profile["username"] = new_name
+        self._avatar_preview.set_initial(new_name)
+        self._show_uname_status("Username changed", t["buy_color"])
+        self.username_changed.emit(new_name)
+
+    def _show_uname_status(self, msg: str, color: str):
+        t = self._tokens
+        self._uname_status.setText(msg)
+        self._uname_status.setStyleSheet(
+            f"color: {color}; font-size: {t['font_small']}; font-weight: bold;"
+        )
+        QTimer.singleShot(3000, lambda: (
+            self._uname_status.setText(""),
+            self._uname_status.setStyleSheet(""),
+        ))
 
     def _change_password(self):
         cur = self.current_pw.text()
