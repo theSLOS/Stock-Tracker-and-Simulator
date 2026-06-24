@@ -1,8 +1,0 @@
-{
-    "username": "user3",
-    "password": "pbkdf2sha256:260000:137bf338f5aef20dd6f1960e745a6d38:b18530fbc0c83e518b2704e545ecd7d9d12b5c757310664b9cbbb3c51fde455e",
-    "preferences": {
-        "theme": "dark",
-        "default_stock": "AAPL"
-    }
-}
