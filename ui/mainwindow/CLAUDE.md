@@ -87,13 +87,15 @@ Signals: `back_requested`, `settings_requested` — connected by `MainWindow`.
 
 Market screener shown in the "Explore" top-level tab. Data fetched by `ExploreWorker` (`core/explore_worker.py`). Constructed as `ExplorePanel(theme="dark")`.
 
-- **Ticker universe** — full S&P 500 (~503 tickers) fetched from Wikipedia at runtime; falls back to a hardcoded 58-ticker curated list if the fetch fails
+- **Ticker universe** — full S&P 500 (~503 tickers) fetched from Wikipedia at runtime; falls back to a hardcoded 58-ticker curated list if the fetch fails (status label notes when fallback is in use)
 - **Daily cache** — results stored in `Users/explore_cache.json` keyed by date; served instantly on the same calendar day without re-downloading
 - **Four sub-tabs** — Top Gainers (% change desc), Top Losers (% change asc), Most Active (volume desc), Biggest Movers (absolute % change desc); each shows top 20
-- **Table columns** — Symbol, Name, Price, Change % (green/red), Volume, "+ Add" button
-- **Load flow** — `start_background_load()` called by `MainWindow.__init__` at login (`force=False`, cache-aware); `refresh_if_empty()` is the tab-switch fallback; manual Refresh button uses `force=True` to always re-download and overwrite the cache
-- **Add flow** — "+ Add" emits `add_to_portfolio(symbol)` → `MainWindow.add_stock_from_explore()` → `StockFetchWorker` → switches to Portfolio tab
-- **Theme** — `set_theme(theme)` updates `_tokens` and refreshes the status label stylesheet; gain/loss colours use `tokens["buy_color"]` / `tokens["sell_color"]` from the token dict
+- **Table columns** — `#` rank, Symbol, Name, Price, Change % (▲/▼ arrows + green/red color), Volume, "+ Add" button
+- **Market overview bar** — strip below the header showing total stock count, gainers count (green), losers count (red), and average move (colored by sign); hidden until first load, updated by `_on_data_loaded()`; stored as `_ov_total/gainers/losers/avg` labels; `_update_overview(data)` computes and styles them; re-colored on `set_theme()`
+- **Real-time search filter** — `QLineEdit` above the tabs; `textChanged` → `_apply_filter(text)` calls `setRowHidden()` on the active table for rows not matching the query in symbol (col 1) or name (col 2); `_tabs.currentChanged` re-applies the filter so switching tabs respects the current query
+- **Load flow** — `start_background_load()` called by `MainWindow.__init__` at login (`force=False`, cache-aware); `refresh_if_empty()` is the tab-switch fallback; manual Refresh button uses `force=True` to always re-download and overwrite the cache; status label shows `"Loaded N stocks · HH:MM AM"` timestamp after load
+- **Add flow** — "+ Add" button per row emits `add_to_portfolio(symbol)`; double-clicking any row also emits it; both route to `MainWindow.add_stock_from_explore()` → `StockFetchWorker` → switches to Portfolio tab
+- **Theme** — `set_theme(theme)` updates `_tokens` and rebuilds stylesheets for the status label, search bar, overview bar labels, and all four table widgets (background, alternating rows, header); gain/loss colours use `tokens["buy_color"]` / `tokens["sell_color"]`
 
 ---
 

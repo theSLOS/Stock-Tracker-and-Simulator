@@ -20,7 +20,7 @@ A desktop stock portfolio viewer and predictor built with Python and PyQt6.
 - **Portfolio tracker** — record positions (shares, cost basis, optional sell target); interactive animated donut chart with per-holding hover detail and gain/loss stats; performance card shows total cost, current value, gain/loss %, and distance to sell target
 - **Add Stock dialog** — card-style dialog matching the login aesthetic; shows Market Highlights (Top Gainers, Top Losers, Most Active) as clickable chips populated from the Explore cache; clicking a chip fills the symbol field
 - **Stock rename** — pencil button (✎) next to the stock name in the info panel lets you set a custom display name per holding; updates the dropdown combo immediately
-- **Market explorer** — Explore tab shows live Top Gainers, Top Losers, Most Active, and Biggest Movers across the full S&P 500 (~503 tickers), fetched fresh daily from Wikipedia and cached for the session; one click adds any stock to your portfolio
+- **Market explorer** — Explore tab shows live Top Gainers, Top Losers, Most Active, and Biggest Movers across the full S&P 500 (~503 tickers), fetched fresh daily from Wikipedia and cached for the session; market overview bar shows gainers/losers count and average move at a glance; real-time search filters by symbol or company name across the active tab; directional arrows (▲/▼) on change %; double-click any row (or use the per-row button) to add a stock to your portfolio; status line shows the data timestamp so you always know how fresh the numbers are
 - **User settings** — edit profile fields, change password (stored as PBKDF2-SHA256 hash), toggle dark/light theme; theme change applies instantly across every panel without restart
 
 ---

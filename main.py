@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import QApplication, QDialog
 from ui.login_page import LoginDialog
 from ui.mainwindow.main_window import MainWindow, apply_dark_theme, apply_light_theme
 from core import caching, user_manager
-import os; print(os.getenv("ANTHROPIC_API_KEY"))
+import os;
 
 def _auto_login(username, password):
     users = user_manager.load_users()

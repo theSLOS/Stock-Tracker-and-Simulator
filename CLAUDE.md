@@ -40,7 +40,7 @@ ui/                            # All PyQt6 UI components
         info_panel.py          # InfoPanel (QWidget) — left panel (profile row, stock header, 3 tabs); theme-aware via set_theme()
         chart_panel.py         # ChartPanel (QWidget) — right panel; top combo row (+ Add Stock, dropdown, Delete); single bottom toolbar (date range buttons 1Y/6M/3M/1M/All on left, SMA/EMA indicator toggles on right); apply_theme() rebuilds stylesheet from get_tokens()
         stock_chart.py         # StockChart (QWidget) — self-contained chart; calls autoRange() after every _redraw() so date-range changes snap the viewport
-        explore_panel.py       # ExplorePanel (QWidget) — market explorer tab; theme-aware via set_theme()
+        explore_panel.py       # ExplorePanel (QWidget) — market explorer tab; market overview bar (gainers/losers/avg move); real-time search filter (symbol or name); rank # column; ▲/▼ change arrows; double-click row to add; load timestamp in status; theme-aware via set_theme()
         portfolio_page.py      # UserPage (QWidget) — full-window portfolio page; receives theme= at construction
         add_stock_dialog.py    # AddStockDialog (QDialog) — card-style add dialog; reads explore cache for market highlight chips; returns symbol via get_symbol()
         ai_analysis_dialog.py  # AIAnalysisDialog (QDialog); receives theme= at construction
