@@ -21,17 +21,18 @@ A desktop stock portfolio viewer and predictor built with Python and PyQt6.
 - **Add Stock dialog** — card-style dialog matching the login aesthetic; shows Market Highlights (Top Gainers, Top Losers, Most Active) as clickable chips populated from the Explore cache; clicking a chip fills the symbol field
 - **Stock rename** — pencil button (✎) next to the stock name in the info panel lets you set a custom display name per holding; updates the dropdown combo immediately
 - **Market explorer** — Explore tab shows live Top Gainers, Top Losers, Most Active, and Biggest Movers across the full S&P 500 (~503 tickers), fetched fresh daily from Wikipedia and cached for the session; market overview bar shows gainers/losers count and average move at a glance; real-time search filters by symbol or company name across the active tab; directional arrows (▲/▼) on change %; double-click any row (or use the per-row button) to add a stock to your portfolio; status line shows the data timestamp so you always know how fresh the numbers are
-- **User settings** — edit profile fields, change password (stored as PBKDF2-SHA256 hash), toggle dark/light theme; theme change applies instantly across every panel without restart
+- **User settings** — card-style sidebar dialog with four sections: Profile (email, phone), Appearance (pill Dark/Light toggle), Security (inline password change with validation), and API Keys (per-key status chips with Update and Delete buttons); theme change applies instantly across every panel without restart
+- **Per-user API keys** — each user stores their own Anthropic and Finnhub keys locally in a gitignored file; in-app prompts guide users to add keys the first time they use a feature that needs one; keys can also be managed from Settings → API Keys (shows ✓ Set / ✗ Not set status, Update opens the card-style key dialog, Delete removes the key immediately)
 
 ---
 
 ## Requirements
 
 - **Python 3.10–3.12** — Prophet's dependencies are not always compatible with newer Python versions
-- **Anthropic API key** — for AI analysis (`ANTHROPIC_API_KEY`)
-- **Finnhub API key** — for insider trades (`FINNHUB_API_KEY`); free tier at [finnhub.io](https://finnhub.io), no credit card required
+- **Anthropic API key** — for AI analysis; get one at [console.anthropic.com](https://console.anthropic.com)
+- **Finnhub API key** — for insider trades; free tier at [finnhub.io](https://finnhub.io), no credit card required
 
-Both API keys are optional — all other features work without them.
+Both API keys are optional — all other features work without them. Keys are set per user inside the app (see below).
 
 ---
 
@@ -71,18 +72,13 @@ pip install -r requirements.txt
 
 `prophet` also pulls in `cmdstanpy` and `matplotlib` — expect the first install to take a couple of minutes.
 
-### 4. Add API keys
+### 4. Add API keys (optional)
 
-Copy `.env.example` to `.env` and fill in your keys:
+API keys are stored **per user** inside the app — no `.env` file required. The first time you trigger a feature that needs a key (AI analysis or insider trades), a dialog will prompt you to enter it. You can also add or update keys at any time via **User Page → Settings → API Keys**.
 
-```bash
-cp .env.example .env
-```
+Keys are saved to `Users/<username>/api_keys.json`, which is gitignored and never committed.
 
-```
-ANTHROPIC_API_KEY=sk-ant-...
-FINNHUB_API_KEY=your_key_here
-```
+> **Legacy `.env` support** — if you have an existing `.env` file with `ANTHROPIC_API_KEY` or `FINNHUB_API_KEY`, those values are used as a fallback for any user who hasn't set their own key yet.
 
 ---
 
@@ -122,7 +118,7 @@ All test accounts use the password `password`.
 Stock-App/
 ├── main.py                      # Entry point — wires login → main window
 ├── requirements.txt
-├── .env                         # API keys (not committed)
+├── .env                         # Optional legacy API keys (gitignored)
 │
 ├── ui/
 │   ├── mainwindow/              # Main app window (all files use relative imports)
@@ -134,7 +130,8 @@ Stock-App/
 │   │   ├── portfolio_page.py    # Full-window portfolio page with interactive donut chart
 │   │   ├── add_stock_dialog.py  # AddStockDialog — card-style add dialog with market highlight chips
 │   │   ├── ai_analysis_dialog.py
-│   │   └── settings_dialog.py
+│   │   ├── api_key_dialog.py    # ApiKeyDialog — card-style dialog for adding/updating a single API key
+│   │   └── settings_dialog.py   # UserSettingsDialog — card + sidebar nav (Profile / Appearance / Security / API Keys)
 │   ├── login_page.py
 │   ├── register_page.py
 │   └── theme.py                 # Centralised colour + font token system; get_tokens() returns a merged dict used by every UI component
@@ -143,6 +140,7 @@ Stock-App/
 │   ├── stock_handler.py         # yfinance fetching, SMA/EMA calculations
 │   ├── caching.py               # Per-user cache manager (stock data + AI results + portfolio)
 │   ├── user_manager.py          # Profile read/write
+│   ├── key_manager.py           # Per-user API key storage (get_key / set_key / delete_key)
 │   ├── stock_model.py           # StockPackage dataclass
 │   ├── prediction_worker.py     # QThread — Prophet 30-day forecast
 │   ├── ai_analysis_worker.py    # QThread — Claude API market analysis
@@ -152,6 +150,7 @@ Stock-App/
 └── Users/
     └── <username>/
         ├── profile.json         # Committed — preferences and hashed credentials
+        ├── api_keys.json        # Gitignored — per-user API keys (Anthropic, Finnhub)
         ├── cache                # Gitignored — stock metadata, AI results, portfolio positions
         └── csvFiles/            # Gitignored — downloaded price CSVs (rebuilt on first use)
 ```
@@ -163,3 +162,4 @@ Stock-App/
 - Stock CSVs and cache files are not committed to the repo — they are downloaded and rebuilt automatically on first use on any machine
 - AI analysis results are cached per user for 24 hours to avoid redundant API calls
 - The portfolio donut chart uses PyQt6's `QPainter` directly — `matplotlib` is only present as a transitive dependency of Prophet and is not used by the UI
+- API keys are stored in `Users/<username>/api_keys.json` (gitignored); they are never written to `profile.json`, which is committed to git

@@ -8,6 +8,7 @@ __pycache__/
 *.csv
 cache/
 Users/*/cache
+Users/*/api_keys.json
 .env
 
 # C extensions

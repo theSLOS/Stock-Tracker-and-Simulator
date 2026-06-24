@@ -133,7 +133,7 @@ class MainWindow(QMainWindow):
     def open_settings(self):
         from .settings_dialog import UserSettingsDialog
         old_theme = self.user_profile.get("preferences", {}).get("theme", "dark")
-        dialog = UserSettingsDialog(self.user_profile, self)
+        dialog = UserSettingsDialog(self.user_profile, theme=old_theme, parent=self)
         if dialog.exec():
             new_theme = self.user_profile.get("preferences", {}).get("theme", "dark")
             if new_theme != old_theme:
@@ -232,7 +232,9 @@ class MainWindow(QMainWindow):
         if self.df.empty:
             return
         from .ai_analysis_dialog import AIAnalysisDialog
+        from .api_key_dialog import ApiKeyDialog
         from core.ai_analysis_worker import AIAnalysisWorker
+        from core import key_manager
         symbol = self.chart_panel.current_symbol()
         info = self.cache.get_stock_data(symbol)
         name = info.get("name", symbol) if info else symbol
@@ -245,7 +247,17 @@ class MainWindow(QMainWindow):
             dialog.exec()
             return
 
-        self._ai_worker = AIAnalysisWorker(symbol, name, self.df)
+        anthropic_key = key_manager.get_key(self.username, "ANTHROPIC_API_KEY")
+        if not anthropic_key:
+            dlg = ApiKeyDialog("ANTHROPIC_API_KEY", self.username, theme=current_theme, parent=self)
+            if dlg.exec() != dlg.DialogCode.Accepted:
+                return
+            anthropic_key = key_manager.get_key(self.username, "ANTHROPIC_API_KEY")
+
+        finnhub_key = key_manager.get_key(self.username, "FINNHUB_API_KEY")
+        self._ai_worker = AIAnalysisWorker(symbol, name, self.df,
+                                           anthropic_key=anthropic_key,
+                                           finnhub_key=finnhub_key)
         dialog = AIAnalysisDialog(symbol, name, theme=current_theme, parent=self)
         self._ai_worker.finished.connect(dialog.show_results)
         self._ai_worker.finished.connect(lambda result, sym=symbol: self._on_ai_finished(sym, result))

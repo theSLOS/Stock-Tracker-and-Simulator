@@ -97,6 +97,8 @@ class InfoPanel(QWidget):
         super().__init__(parent)
         self.setMinimumWidth(200)
         self.setMaximumWidth(280)
+        self._username = username
+        self._theme = theme
         self._senate_worker = None
         self._current_symbol = None
         self._current_price = None
@@ -208,6 +210,11 @@ class InfoPanel(QWidget):
         self._senate_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._labels_faint.append((self._senate_status, f"font-size: {t['font_small']};"))
 
+        self._senate_add_key_btn = QPushButton("Set Finnhub API Key")
+        self._senate_add_key_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._senate_add_key_btn.hide()
+        self._senate_add_key_btn.clicked.connect(self._on_add_finnhub_key)
+
         self._senate_container = QWidget()
         self._senate_container.setStyleSheet("background: transparent;")
         self._senate_inner_layout = QVBoxLayout(self._senate_container)
@@ -228,6 +235,7 @@ class InfoPanel(QWidget):
         layout.addWidget(stats_sep)
         layout.addWidget(insider_title)
         layout.addWidget(self._senate_status)
+        layout.addWidget(self._senate_add_key_btn)
         layout.addWidget(senate_scroll, stretch=1)
         return tab
 
@@ -387,6 +395,7 @@ class InfoPanel(QWidget):
     # ------------------------------------------------------------------ public
 
     def set_theme(self, theme):
+        self._theme = theme
         self._tokens = get_tokens(theme)
         self._profile_row.set_theme(theme)
         self._apply_theme_styles(self._tokens)
@@ -592,6 +601,24 @@ class InfoPanel(QWidget):
         self._port_perf_section.setStyleSheet(
             f"QWidget#perf_card {{ background: {t['alternate_base']}; border-radius: 6px; }}"
         )
+        self._senate_add_key_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                color: {t['highlight']};
+                border: 1px solid {t['highlight']};
+                border-radius: 6px;
+                font-size: {t['font_small']};
+                padding: 5px 0px;
+            }}
+            QPushButton:hover {{
+                background: {t['highlight']};
+                color: #ffffff;
+            }}
+            QPushButton:pressed {{
+                background: #1a6fc0;
+                color: #ffffff;
+            }}
+        """)
         self._tabs.setStyleSheet(f"""
             QTabWidget::pane {{
                 border: none;
@@ -763,6 +790,13 @@ class InfoPanel(QWidget):
                 self._port_save_btn.setEnabled(True),
             ))
 
+    def _on_add_finnhub_key(self):
+        from PyQt6.QtWidgets import QDialog
+        from .api_key_dialog import ApiKeyDialog
+        dlg = ApiKeyDialog("FINNHUB_API_KEY", self._username, theme=self._theme, parent=self)
+        if dlg.exec() == QDialog.DialogCode.Accepted and self._current_symbol:
+            self._fetch_senate_trades(self._current_symbol)
+
     def _on_clear_portfolio(self):
         from PyQt6.QtWidgets import QMessageBox
         reply = QMessageBox.question(
@@ -776,13 +810,21 @@ class InfoPanel(QWidget):
 
     def _fetch_senate_trades(self, symbol):
         from core.senate_worker import SenateWorker
+        from core import key_manager
+        finnhub_key = key_manager.get_key(self._username, "FINNHUB_API_KEY")
+        if not finnhub_key:
+            self._senate_status.setText("Finnhub API key not configured.")
+            self._senate_status.show()
+            self._senate_add_key_btn.show()
+            return
+        self._senate_add_key_btn.hide()
         self._senate_status.setText("Loading...")
         self._senate_status.show()
         for i in reversed(range(self._senate_inner_layout.count())):
             w = self._senate_inner_layout.itemAt(i).widget()
             if w:
                 w.deleteLater()
-        self._senate_worker = SenateWorker(symbol)
+        self._senate_worker = SenateWorker(symbol, finnhub_key=finnhub_key)
         self._senate_worker.finished.connect(self._update_senate_trades)
         self._senate_worker.start()
 

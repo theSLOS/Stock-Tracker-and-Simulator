@@ -121,8 +121,21 @@ Exports `_score_color(score)` and `_score_description(score)` — reused by `Mai
 
 ## UserSettingsDialog (`settings_dialog.py`)
 
-- Edit email, phone → saved to `profile.json`
-- Toggle Dark / Light theme → applies immediately to the running app
-- Change password → requires current password, validates confirmation match
+Constructed as `UserSettingsDialog(user_profile: dict, theme: str = "dark", parent=None)`. Fixed 680 × 500 px card-style dialog with a left sidebar and a `QStackedWidget` content area. Fully token-driven via `_build_style(t)` — no hardcoded colours.
 
-Writes via `user_manager.save_user_profile()`.
+**Layout:**
+- Outer `QDialog` background: `base`. Inner `QFrame#card` (`window`, 14 px radius, separator border).
+- Left `QFrame#sidebar` (155 px, `alternate_base`, right separator) holds the "SETTINGS" header and four checkable `QPushButton#nav_btn` items. Checked nav button fills with `highlight`; unchecked hover uses `separator`.
+- Right area: `QStackedWidget` for page content + global Save / Cancel `QDialogButtonBox` pinned at the bottom.
+
+**Pages (nav order):**
+
+1. **Profile** — username read-only chip (`QLabel#username_chip`, `alternate_base` background), EMAIL and PHONE `QLineEdit` fields pre-filled from `user_profile`. Saved by the global Save button.
+
+2. **Appearance** — pill-style Dark / Light toggle: two joined `QPushButton` (`#btn_theme_l` / `#btn_theme_r`) with shared borders and matching checked/unchecked states. Saved by the global Save button.
+
+3. **Security** — CURRENT PASSWORD / NEW PASSWORD / CONFIRM NEW PASSWORD fields + a blue "Change Password" `QPushButton#btn_save_pw`. Clicking it validates inline (warns on incomplete fields, wrong current password, or mismatch) via `user_manager.verify_password()` + `hash_password()` + `save_user_profile()`, then clears the fields and flashes a "✓ Password changed" label for 3 s via `QTimer.singleShot`. The global Save button does **not** touch password fields.
+
+4. **API Keys** — one `QFrame#key_row` card per key (Anthropic, Finnhub). Each row shows: icon (highlight color), display name, a status chip ("✓ Set" in `buy_color` / "✗ Not set" in `sell_color`), an "Update" `QPushButton#btn_key_update` (opens `ApiKeyDialog`; refreshes chip on accept), and a "Delete" `QPushButton#btn_key_delete` (calls `key_manager.delete_key()`; refreshes chip; hidden when key is not set). All API key actions save immediately — the global Save button does **not** affect them.
+
+**Save logic (`_save()`):** copies `user_profile`, updates email + phone + theme preference, calls `user_manager.save_user_profile()`, updates `self.user_profile` in-place, then `self.accept()`. `MainWindow.open_settings()` reads the updated theme and triggers `apply_palette()` + `set_theme()` on all persistent panels — no changes needed in `main_window.py`.

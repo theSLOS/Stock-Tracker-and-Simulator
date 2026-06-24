@@ -4,5 +4,7 @@
     "preferences": {
         "theme": "dark",
         "default_stock": "AAPL"
-    }
+    },
+    "email": "test@verify.com",
+    "phone": ""
 }
