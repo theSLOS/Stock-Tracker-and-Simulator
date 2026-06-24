@@ -35,6 +35,10 @@ requirements.txt
 .env                           # Optional legacy fallback for ANTHROPIC_API_KEY + FINNHUB_API_KEY (gitignored)
 
 ui/                            # All PyQt6 UI components
+    logo/                      # SVG brand assets (committed)
+        logo-symbol.svg        # Square 512×512 badge icon — window/taskbar icon + in-dialog branding
+        logo-full.svg          # Horizontal 940×300 wordmark, light-theme colours
+        logo-full-dark.svg     # Horizontal 940×300 wordmark, dark-theme colours
     mainwindow/                # Main app window package (see ui/mainwindow/CLAUDE.md)
         main_window.py         # MainWindow (QMainWindow) + StockFetchWorker + apply_dark/light_theme()
         info_panel.py          # InfoPanel (QWidget) — left panel (profile row, stock header, 3 tabs); theme-aware via set_theme()
@@ -42,12 +46,12 @@ ui/                            # All PyQt6 UI components
         stock_chart.py         # StockChart (QWidget) — self-contained chart; calls autoRange() after every _redraw() so date-range changes snap the viewport
         explore_panel.py       # ExplorePanel (QWidget) — market explorer tab; market overview bar (gainers/losers/avg move); real-time search filter (symbol or name); rank # column; ▲/▼ change arrows; double-click row to add; load timestamp in status; theme-aware via set_theme()
         portfolio_page.py      # UserPage (QWidget) — full-window portfolio page; receives theme= at construction
-        add_stock_dialog.py    # AddStockDialog (QDialog) — card-style add dialog; reads explore cache for market highlight chips; returns symbol via get_symbol()
+        add_stock_dialog.py    # AddStockDialog (QDialog) — card-style add dialog; reads explore cache for market highlight chips; returns symbol via get_symbol(); branding icon rendered from logo-symbol.svg
         ai_analysis_dialog.py  # AIAnalysisDialog (QDialog); receives theme= at construction
         api_key_dialog.py      # ApiKeyDialog (QDialog) — card-style dialog for entering/updating a single API key; used inline and from settings
         settings_dialog.py     # UserSettingsDialog (QDialog) — card + sidebar nav: Profile (avatar upload, username rename), Appearance (pill theme toggle), Security (inline password change), API Keys (per-key status + Update/Delete)
-    login_page.py              # LoginDialog (QDialog) — fixed 440×540 card-on-dark layout; styled with get_tokens("dark"); always shown with dark theme regardless of user preference
-    register_page.py           # RegisterDialog (QDialog) — matching 440×560 card design to login_page; opened from login footer
+    login_page.py              # LoginDialog (QDialog) — fixed 440×540 card-on-dark layout; styled with get_tokens("dark"); always shown with dark theme regardless of user preference; branding icon rendered from logo-symbol.svg
+    register_page.py           # RegisterDialog (QDialog) — matching 440×620 card design to login_page; opened from login footer; branding icon rendered from logo-symbol.svg
     theme.py                   # Centralised token system: THEMES dict + _FONT_SCALE + _SIGNAL_COLORS; get_tokens(theme) → merged dict used by every UI component; apply_palette() sets Qt QPalette
 
 core/                          # Business logic, data, background workers (see core/CLAUDE.md)
@@ -98,6 +102,7 @@ Users/
 - **`QStackedWidget` within Portfolio tab** — index 0: stock view (InfoPanel + ChartPanel). Index 1: `UserPage`, recreated fresh on every navigation so data is always current.
 - **No menu bar** — settings accessed via the User Page (profile row in InfoPanel).
 - **Per-user API keys** — stored in `Users/<username>/api_keys.json` (gitignored), separate from `profile.json` (which is committed). `core/key_manager.py` handles all reads/writes and falls back to `os.getenv()` so the legacy `.env` file keeps working. Keys are never hardcoded in workers; they are passed as constructor params so tests or future callers can supply them directly.
+- **Logo rendering** — `ui/logo/logo-symbol.svg` is the single brand asset used for the window/taskbar icon and inline dialog branding. Rendered via `QSvgRenderer` → `QPixmap` (transparent background) → `QLabel` or `QIcon` — never `QSvgWidget`, which has background-transparency issues on dark cards. On Windows, `main.py` calls `ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID` before `QApplication` so the taskbar button shows the custom icon instead of Python's default. Icon set on `QApplication` (not individual windows) so it propagates automatically to all dialogs.
 - **Centralised theme tokens** — `theme.py` is the single source of truth for all colours and font sizes. `get_tokens(theme)` merges `THEMES[theme]` + `_FONT_SCALE` + `_SIGNAL_COLORS` into one flat dict. Every UI component imports `get_tokens` and uses only token keys — **no hardcoded hex values or pixel sizes anywhere in UI files**. Pre-login dialogs (`LoginDialog`, `RegisterDialog`) call `get_tokens("dark")` directly since the user hasn't chosen a theme yet. Persistent widgets (`InfoPanel`, `ExplorePanel`, `ChartPanel`) expose `set_theme(theme)` / `apply_theme(theme)` and rebuild their stylesheets on theme switch; one-shot widgets (`UserPage`, `AIAnalysisDialog`) receive `theme=` at construction. `MainWindow.open_settings()` is the single call site that triggers `apply_palette` + `set_theme` on all persistent panels.
 
 ---

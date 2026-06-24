@@ -1,12 +1,28 @@
+import os
+
 from PyQt6.QtWidgets import (
     QDialog, QPushButton, QVBoxLayout, QHBoxLayout,
     QLineEdit, QLabel, QFrame, QMessageBox,
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap, QPainter
+from PyQt6.QtSvg import QSvgRenderer
 
 from core import user_manager
 from ui.register_page import RegisterDialog
 from ui.theme import get_tokens
+
+_SYMBOL_PATH = os.path.join(os.path.dirname(__file__), 'logo', 'logo-symbol.svg')
+
+
+def _svg_pixmap(size: int) -> QPixmap:
+    renderer = QSvgRenderer(_SYMBOL_PATH)
+    px = QPixmap(size, size)
+    px.fill(Qt.GlobalColor.transparent)
+    p = QPainter(px)
+    renderer.render(p)
+    p.end()
+    return px
 
 
 def _build_style(t: dict) -> str:
@@ -18,11 +34,6 @@ def _build_style(t: dict) -> str:
             background: {t['window']};
             border-radius: 14px;
             border: 1px solid {t['separator']};
-        }}
-        QLabel#logo_icon {{
-            color: {t['highlight']};
-            font-size: 52px;
-            font-weight: bold;
         }}
         QLabel#app_name {{
             color: {t['text']};
@@ -115,8 +126,8 @@ class LoginDialog(QDialog):
         layout.setSpacing(0)
 
         # ── Logo / branding ───────────────────────────────────────────────
-        icon_lbl = QLabel("▲")
-        icon_lbl.setObjectName("logo_icon")
+        icon_lbl = QLabel()
+        icon_lbl.setPixmap(_svg_pixmap(72))
         icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         name_lbl = QLabel("Stock Viewer")

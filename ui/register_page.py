@@ -1,11 +1,27 @@
+import os
+
 from PyQt6.QtWidgets import (
     QDialog, QPushButton, QVBoxLayout, QHBoxLayout,
     QLineEdit, QLabel, QFrame, QMessageBox,
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap, QPainter
+from PyQt6.QtSvg import QSvgRenderer
 
 from core import user_manager
 from ui.theme import get_tokens
+
+_SYMBOL_PATH = os.path.join(os.path.dirname(__file__), 'logo', 'logo-symbol.svg')
+
+
+def _svg_pixmap(size: int) -> QPixmap:
+    renderer = QSvgRenderer(_SYMBOL_PATH)
+    px = QPixmap(size, size)
+    px.fill(Qt.GlobalColor.transparent)
+    p = QPainter(px)
+    renderer.render(p)
+    p.end()
+    return px
 
 
 def _build_style(t: dict) -> str:
@@ -99,7 +115,7 @@ class RegisterDialog(QDialog):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Create Account")
-        self.setFixedSize(440, 560)
+        self.setFixedSize(440, 620)
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
         self.setStyleSheet(_build_style(get_tokens("dark")))
         self._build_ui()
@@ -115,6 +131,12 @@ class RegisterDialog(QDialog):
         layout.setSpacing(0)
 
         # ── Header ────────────────────────────────────────────────────────
+        icon_lbl = QLabel()
+        icon_lbl.setPixmap(_svg_pixmap(44))
+        icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(icon_lbl)
+        layout.addSpacing(12)
+
         title_lbl = QLabel("Create Account")
         title_lbl.setObjectName("dialog_title")
         title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)

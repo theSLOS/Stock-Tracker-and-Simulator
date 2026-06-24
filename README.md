@@ -123,6 +123,10 @@ Stock-App/
 ├── .env                         # Optional legacy API keys (gitignored)
 │
 ├── ui/
+│   ├── logo/                    # SVG brand assets
+│   │   ├── logo-symbol.svg      # Square badge icon (512×512) — used for window/taskbar icon and in-dialog branding
+│   │   ├── logo-full.svg        # Horizontal wordmark, light-theme colours (940×300)
+│   │   └── logo-full-dark.svg   # Horizontal wordmark, dark-theme colours (940×300)
 │   ├── mainwindow/              # Main app window (all files use relative imports)
 │   │   ├── main_window.py       # Thin coordinator — owns workers, connects panel signals
 │   │   ├── info_panel.py        # Left panel — stock header, stats, insider trades, AI, portfolio tab

@@ -7,8 +7,22 @@ from PyQt6.QtWidgets import (
     QLineEdit, QLabel, QFrame,
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap, QPainter
+from PyQt6.QtSvg import QSvgRenderer
 
 from ui.theme import get_tokens
+
+_SYMBOL_PATH = os.path.join(os.path.dirname(__file__), '..', 'logo', 'logo-symbol.svg')
+
+
+def _svg_pixmap(size: int) -> QPixmap:
+    renderer = QSvgRenderer(_SYMBOL_PATH)
+    px = QPixmap(size, size)
+    px.fill(Qt.GlobalColor.transparent)
+    p = QPainter(px)
+    renderer.render(p)
+    p.end()
+    return px
 
 
 def _load_explore_cache():
@@ -33,11 +47,6 @@ def _build_style(t: dict) -> str:
             background: {t['window']};
             border-radius: 14px;
             border: 1px solid {t['separator']};
-        }}
-        QLabel#dialog_icon {{
-            color: {t['highlight']};
-            font-size: 36px;
-            font-weight: bold;
         }}
         QLabel#dialog_title {{
             color: {t['text']};
@@ -135,8 +144,8 @@ class AddStockDialog(QDialog):
 
         # ── Header ────────────────────────────────────────────────────────
         header_row = QHBoxLayout()
-        icon_lbl = QLabel("▲")
-        icon_lbl.setObjectName("dialog_icon")
+        icon_lbl = QLabel()
+        icon_lbl.setPixmap(_svg_pixmap(28))
         title_lbl = QLabel("Add Stock")
         title_lbl.setObjectName("dialog_title")
         header_row.addWidget(icon_lbl)

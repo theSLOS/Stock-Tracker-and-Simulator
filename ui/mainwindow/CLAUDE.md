@@ -101,7 +101,7 @@ Market screener shown in the "Explore" top-level tab. Data fetched by `ExploreWo
 
 ## AddStockDialog (`add_stock_dialog.py`)
 
-Constructed as `AddStockDialog(theme="dark", parent=None)`. Card-style dialog matching the login/register aesthetic (dark outer background, rounded card, blue `▲` header icon).
+Constructed as `AddStockDialog(theme="dark", parent=None)`. Card-style dialog matching the login/register aesthetic (dark outer background, rounded card, `logo-symbol.svg` rendered as a 28×28 px icon in the header row).
 
 - **Symbol input** — single `QLineEdit`; Enter triggers add; uppercased on submit
 - **Market Highlights** — if `Users/explore_cache.json` exists and is dated today, reads it directly at construction and renders three rows of clickable chip buttons: ▲ Top Gainers (green border), ▼ Top Losers (red), ⚡ Most Active (highlight blue). Each chip shows `SYMBOL  +X.X%`. Clicking a chip fills the symbol field.
