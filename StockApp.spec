@@ -22,8 +22,6 @@ except Exception as e:
 
 # ── Data files ────────────────────────────────────────────────────────────────
 datas = [
-    # Demo user accounts (profile.json files only — gitignored files are absent)
-    ("Users", "Users"),
     # Prophet holiday calendars and model data
     *collect_data_files("prophet"),
     *collect_data_files("holidays"),

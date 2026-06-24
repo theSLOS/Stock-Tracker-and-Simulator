@@ -101,27 +101,16 @@ Keys are saved to `Users/<username>/api_keys.json`, which is gitignored and neve
 python main.py
 ```
 
-On first launch you will be prompted to log in. Register a new account or use one of the test accounts below. AAPL data is fetched automatically when your portfolio is empty.
+On first launch you will be prompted to log in. Register a new account — AAPL data is fetched automatically when your portfolio is empty.
 
 **Skip the login prompt** by passing credentials directly:
 
 ```bash
-python main.py --user admin --password password
-python main.py -u admin -p password        # short flags
+python main.py --user <username> --password <password>
+python main.py -u <username> -p <password>   # short flags
 ```
 
 If credentials are invalid, the app falls back to the normal login dialog.
-
-### Test accounts
-
-All test accounts use the password `password`.
-
-| Username | Notes |
-|---|---|
-| `admin` | AAPL cached |
-| `user3` | AAPL, NVDA, AMZN, GOOG, TSLA in portfolio |
-| `user2` | AAPL cached |
-| `user1` | Empty — downloads AAPL on first login |
 
 ---
 

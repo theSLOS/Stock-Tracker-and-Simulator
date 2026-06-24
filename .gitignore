@@ -7,10 +7,7 @@ __pycache__/
 #local files
 *.csv
 cache/
-Users/*/cache
-Users/*/api_keys.json
-Users/*/avatar.png
-Users/explore_cache.json
+Users/
 .env
 
 # C extensions
