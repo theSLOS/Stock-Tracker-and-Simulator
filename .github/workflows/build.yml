@@ -1,0 +1,92 @@
+name: Build Executables
+
+# Runs automatically when you publish a GitHub Release.
+# Each platform builds its own native executable and uploads it to the release.
+on:
+  release:
+    types: [created]
+
+permissions:
+  contents: write  # needed to upload assets to the release
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: StockApp-Windows.zip
+          - os: macos-latest
+            artifact: StockApp-macOS.zip
+          - os: ubuntu-latest
+            artifact: StockApp-Linux.zip
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      # Prophet's Stan model files have deeply nested paths that exceed
+      # Windows' default 260-character path limit.
+      - name: Enable long paths (Windows only)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Set-ItemProperty `
+            -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
+            -Name LongPathsEnabled -Value 1
+
+      # PyQt6 on Linux needs several XCB platform libraries.
+      - name: Install Linux display libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            libgl1 libglib2.0-0 \
+            libxcb-cursor0 libxcb-icccm4 libxcb-image0 \
+            libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 \
+            libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 \
+            libxkbcommon-x11-0
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      # CmdStan is Prophet's Stan backend. We install it here so the spec
+      # file can locate and bundle the platform-specific binaries.
+      - name: Install CmdStan
+        run: python -c "import cmdstanpy; cmdstanpy.install_cmdstan()"
+
+      - name: Build with PyInstaller
+        run: pyinstaller StockApp.spec
+
+      # ── Package each platform ──────────────────────────────────────────────
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist\StockApp -DestinationPath StockApp-Windows.zip
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: zip -r StockApp-macOS.zip dist/StockApp.app
+
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: zip -r StockApp-Linux.zip dist/StockApp
+
+      # ── Upload to the GitHub Release that triggered this workflow ──────────
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.artifact }}

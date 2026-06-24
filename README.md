@@ -45,32 +45,41 @@ git clone https://github.com/ssavory/Stock-App.git
 cd Stock-App
 ```
 
-### 2. Create a virtual environment
+### 2. Run the setup script
 
-```bash
-python -m venv venv
-
-# Windows
-venv\Scripts\activate
-
-# macOS / Linux
-source venv/bin/activate
+**Windows** — double-click `setup.bat`, or run it in a terminal:
+```bat
+setup.bat
 ```
 
-### 3. Install dependencies
-
+**macOS / Linux** — make the script executable and run it:
 ```bash
-pip install -r requirements.txt
+chmod +x setup.sh && ./setup.sh
 ```
 
-> **Windows — enable long paths before installing.**
+The script creates a virtual environment and installs all dependencies automatically. Prophet takes ~2 minutes to install on the first run.
+
+> **Windows — enable long paths before running setup.**
 > `prophet` installs Stan model files with deeply nested paths that exceed Windows' 260-character limit by default.
 > Run this once in an **elevated PowerShell** session, then restart your terminal:
 > ```powershell
 > Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name LongPathsEnabled -Value 1
 > ```
 
-`prophet` also pulls in `cmdstanpy` and `matplotlib` — expect the first install to take a couple of minutes.
+<details>
+<summary>Manual setup (alternative)</summary>
+
+```bash
+python -m venv venv
+
+# Windows
+venv\Scripts\activate
+# macOS / Linux
+source venv/bin/activate
+
+pip install -r requirements.txt
+```
+</details>
 
 ### 4. Add API keys (optional)
 
@@ -85,6 +94,10 @@ Keys are saved to `Users/<username>/api_keys.json`, which is gitignored and neve
 ## Running
 
 ```bash
+# Activate the virtual environment first (if not already active)
+# Windows:  venv\Scripts\activate
+# macOS/Linux: source venv/bin/activate
+
 python main.py
 ```
 

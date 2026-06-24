@@ -1,10 +1,11 @@
-PyQt6
-pyqtgraph
-pandas
-numpy
-yfinance
-python-dotenv
-prophet
-anthropic
-requests
-lxml
+# Python 3.10–3.12 required
+PyQt6==6.11.0
+pyqtgraph==0.14.0
+pandas==3.0.3
+numpy==2.4.5
+yfinance==1.3.0
+python-dotenv==1.2.2
+prophet==1.3.0
+anthropic==0.105.2
+requests==2.34.2
+lxml==6.1.1
