@@ -38,7 +38,7 @@ Both API keys are optional — all other features work without them.
 ### 1. Clone
 
 ```bash
-git clone https://github.com/ssavory/Stock-App.git
+git clone https://github.com/theSLOS/Stock-Tracker-and-Simulator.git
 cd Stock-App
 ```
 
