@@ -148,7 +148,7 @@ Every widget reads from this dict — no hardcoded hex values or pixel sizes any
 
 ```bash
 git clone https://github.com/theSLOS/Stock-Tracker-and-Simulator.git
-cd Stock-App
+cd Stock-Tracker-and-Simulator
 ```
 
 ### 2. Run the setup script
