@@ -1,34 +1,60 @@
+import os
+
 import pandas as pd
 
-from PyQt6.QtGui import QColor, QFont, QPainter
+from PyQt6.QtGui import QColor, QFont, QPainter, QPainterPath, QPixmap
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QFrame, QScrollArea, QTabWidget, QLineEdit
+    QFrame, QScrollArea, QTabWidget, QLineEdit, QInputDialog,
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 
+from core import user_manager
 from ..theme import get_tokens
 
 
 class _MiniAvatar(QWidget):
-    def __init__(self, initial, size=28, parent=None):
+    def __init__(self, initial, size=28, avatar_path=None, parent=None):
         super().__init__(parent)
         self._initial = initial
         self.setFixedSize(size, size)
         self._size = size
+        self._avatar_path = avatar_path
+        self._pixmap = self._load_pixmap()
+
+    def _load_pixmap(self):
+        if self._avatar_path and os.path.exists(self._avatar_path):
+            return QPixmap(self._avatar_path).scaled(
+                self._size, self._size,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        return None
+
+    def refresh(self, avatar_path=None):
+        if avatar_path is not None:
+            self._avatar_path = avatar_path
+        self._pixmap = self._load_pixmap()
+        self.update()
 
     def paintEvent(self, _event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setBrush(QColor("#2a82da"))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.drawEllipse(0, 0, self._size, self._size)
-        font = QFont()
-        font.setPixelSize(int(self._size * 0.42))
-        font.setBold(True)
-        p.setFont(font)
-        p.setPen(QColor("#ffffff"))
-        p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self._initial)
+        if self._pixmap and not self._pixmap.isNull():
+            clip = QPainterPath()
+            clip.addEllipse(0.0, 0.0, float(self._size), float(self._size))
+            p.setClipPath(clip)
+            p.drawPixmap(0, 0, self._size, self._size, self._pixmap)
+        else:
+            p.setBrush(QColor("#2a82da"))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.drawEllipse(0, 0, self._size, self._size)
+            font = QFont()
+            font.setPixelSize(int(self._size * 0.42))
+            font.setBold(True)
+            p.setFont(font)
+            p.setPen(QColor("#ffffff"))
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self._initial)
 
 
 class _ProfileRow(QWidget):
@@ -49,7 +75,7 @@ class _ProfileRow(QWidget):
         },
     }
 
-    def __init__(self, initial, username, theme="dark", parent=None):
+    def __init__(self, initial, username, theme="dark", avatar_path=None, parent=None):
         super().__init__(parent)
         self._theme = theme
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -60,15 +86,20 @@ class _ProfileRow(QWidget):
         box_row = QHBoxLayout(self._name_box)
         box_row.setContentsMargins(8, 6, 8, 6)
         box_row.setSpacing(8)
-        box_row.addWidget(_MiniAvatar(initial))
-        name = QLabel(username)
-        name.setStyleSheet("font-size: 12px; font-weight: bold;")
-        box_row.addWidget(name)
+        self._avatar = _MiniAvatar(initial, avatar_path=avatar_path)
+        box_row.addWidget(self._avatar)
+        self._name_lbl = QLabel(username)
+        self._name_lbl.setStyleSheet("font-size: 12px; font-weight: bold;")
+        box_row.addWidget(self._name_lbl)
         box_row.addStretch()
         chevron = QLabel("❯")
         chevron.setStyleSheet("font-size: 13px; color: #7aafd4;")
         box_row.addWidget(chevron)
         outer.addWidget(self._name_box)
+
+    def set_username(self, new_username: str, avatar_path: str | None = None):
+        self._name_lbl.setText(new_username)
+        self._avatar.refresh(avatar_path)
 
     def set_theme(self, theme):
         self._theme = theme
@@ -91,11 +122,14 @@ class InfoPanel(QWidget):
     predict_requested = pyqtSignal()
     ai_requested = pyqtSignal()
     profile_clicked = pyqtSignal()
+    stock_renamed = pyqtSignal(str, str)  # symbol, new_name
 
     def __init__(self, username="", theme="dark", parent=None):
         super().__init__(parent)
         self.setMinimumWidth(200)
         self.setMaximumWidth(280)
+        self._username = username
+        self._theme = theme
         self._senate_worker = None
         self._current_symbol = None
         self._current_price = None
@@ -114,7 +148,8 @@ class InfoPanel(QWidget):
         layout.setSpacing(4)
 
         initial = username[0].upper() if username else "?"
-        self._profile_row = _ProfileRow(initial, username, theme=theme)
+        avatar_path = user_manager.get_avatar_path(username)
+        self._profile_row = _ProfileRow(initial, username, theme=theme, avatar_path=avatar_path)
         self._profile_row.clicked.connect(self.profile_clicked)
         layout.addWidget(self._profile_row)
 
@@ -129,6 +164,14 @@ class InfoPanel(QWidget):
         self._name_label = QLabel("")
         self._name_label.setWordWrap(True)
 
+        self._rename_btn = QPushButton("✎")
+        self._rename_btn.setObjectName("btn_rename")
+        self._rename_btn.setFixedSize(20, 20)
+        self._rename_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._rename_btn.setEnabled(False)
+        self._rename_btn.hide()
+        self._rename_btn.clicked.connect(self._on_rename)
+
         self._price_label = QLabel("—")
         self._price_label.setStyleSheet(f"font-size: {t['font_price']}; font-weight: bold; margin-top: 16px;")
 
@@ -137,18 +180,23 @@ class InfoPanel(QWidget):
         self._main_sep = QFrame()
         self._main_sep.setFrameShape(QFrame.Shape.HLine)
 
-        tabs = QTabWidget()
-        tabs.setDocumentMode(True)
-        tabs.addTab(self._build_info_tab(), "Info")
-        tabs.addTab(self._build_analysis_tab(), "Analysis")
-        tabs.addTab(self._build_portfolio_tab(), "Portfolio")
+        self._tabs = QTabWidget()
+        self._tabs.addTab(self._build_info_tab(), "Info")
+        self._tabs.addTab(self._build_analysis_tab(), "Analysis")
+        self._tabs.addTab(self._build_portfolio_tab(), "Portfolio")
+
+        name_row = QHBoxLayout()
+        name_row.setContentsMargins(0, 0, 0, 0)
+        name_row.setSpacing(4)
+        name_row.addWidget(self._name_label, stretch=1)
+        name_row.addWidget(self._rename_btn)
 
         layout.addWidget(self._symbol_label)
-        layout.addWidget(self._name_label)
+        layout.addLayout(name_row)
         layout.addWidget(self._price_label)
         layout.addWidget(self._change_label)
         layout.addWidget(self._main_sep)
-        layout.addWidget(tabs, stretch=1)
+        layout.addWidget(self._tabs, stretch=1)
 
         self._apply_theme_styles(self._tokens)
 
@@ -194,6 +242,11 @@ class InfoPanel(QWidget):
         self._senate_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._labels_faint.append((self._senate_status, f"font-size: {t['font_small']};"))
 
+        self._senate_add_key_btn = QPushButton("Set Finnhub API Key")
+        self._senate_add_key_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._senate_add_key_btn.hide()
+        self._senate_add_key_btn.clicked.connect(self._on_add_finnhub_key)
+
         self._senate_container = QWidget()
         self._senate_container.setStyleSheet("background: transparent;")
         self._senate_inner_layout = QVBoxLayout(self._senate_container)
@@ -214,6 +267,7 @@ class InfoPanel(QWidget):
         layout.addWidget(stats_sep)
         layout.addWidget(insider_title)
         layout.addWidget(self._senate_status)
+        layout.addWidget(self._senate_add_key_btn)
         layout.addWidget(senate_scroll, stretch=1)
         return tab
 
@@ -275,8 +329,11 @@ class InfoPanel(QWidget):
 
     def _build_portfolio_tab(self):
         t = self._tokens
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
+        self._port_inputs = []
+
+        inner = QWidget()
+        inner.setStyleSheet("background: transparent;")
+        layout = QVBoxLayout(inner)
         layout.setContentsMargins(4, 12, 4, 8)
         layout.setSpacing(6)
 
@@ -293,7 +350,7 @@ class InfoPanel(QWidget):
             self._labels_muted.append((lbl, f"font-size: {t['font_small']};"))
             inp = QLineEdit()
             inp.setPlaceholderText(placeholder)
-            inp.setStyleSheet(f"font-size: {t['font_small']};")
+            self._port_inputs.append(inp)
             row.addWidget(lbl)
             row.addWidget(inp)
             return w, inp
@@ -311,15 +368,31 @@ class InfoPanel(QWidget):
         layout.addWidget(cost_row)
         layout.addWidget(date_row)
         layout.addWidget(target_row)
-        layout.addSpacing(4)
+        layout.addSpacing(6)
         layout.addWidget(self._port_save_btn)
+        layout.addSpacing(10)
+
+        # ── Performance card ──────────────────────────────────────────────
+        self._port_perf_section = QWidget()
+        self._port_perf_section.setObjectName("perf_card")
+        perf_inner = QVBoxLayout(self._port_perf_section)
+        perf_inner.setContentsMargins(8, 10, 8, 10)
+        perf_inner.setSpacing(4)
+
+        perf_header = QHBoxLayout()
+        perf_title = QLabel("Performance")
+        self._labels_secondary.append((perf_title, f"font-size: {t['font_body']}; font-weight: bold;"))
+        self._port_gain_label = QLabel("")
+        self._port_gain_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        perf_header.addWidget(perf_title)
+        perf_header.addStretch()
+        perf_header.addWidget(self._port_gain_label)
+        perf_inner.addLayout(perf_header)
 
         perf_sep = QFrame()
         perf_sep.setFrameShape(QFrame.Shape.HLine)
-        self._separators.append((perf_sep, "margin-top: 8px; margin-bottom: 4px;"))
-
-        perf_title = QLabel("Performance")
-        self._labels_secondary.append((perf_title, f"font-size: {t['font_body']}; font-weight: bold;"))
+        self._separators.append((perf_sep, "margin-top: 4px; margin-bottom: 4px;"))
+        perf_inner.addWidget(perf_sep)
 
         purchased_row,   self._port_purchased   = self._stat_row("Purchased")
         curr_row,        self._port_curr_val     = self._stat_row("Current Price")
@@ -328,15 +401,6 @@ class InfoPanel(QWidget):
         change_row,      self._port_change       = self._stat_row("Change")
         target_perf_row, self._port_target_perf  = self._stat_row("Sell Target")
 
-        self._port_clear_btn = QPushButton("Clear Position")
-        self._port_clear_btn.clicked.connect(self._on_clear_portfolio)
-
-        self._port_perf_section = QWidget()
-        perf_inner = QVBoxLayout(self._port_perf_section)
-        perf_inner.setContentsMargins(0, 0, 0, 0)
-        perf_inner.setSpacing(4)
-        perf_inner.addWidget(perf_sep)
-        perf_inner.addWidget(perf_title)
         perf_inner.addWidget(purchased_row)
         perf_inner.addWidget(curr_row)
         perf_inner.addWidget(cost_total_row)
@@ -344,17 +408,35 @@ class InfoPanel(QWidget):
         perf_inner.addWidget(change_row)
         perf_inner.addWidget(target_perf_row)
         perf_inner.addSpacing(8)
+
+        self._port_clear_btn = QPushButton("Clear Position")
+        self._port_clear_btn.clicked.connect(self._on_clear_portfolio)
         perf_inner.addWidget(self._port_clear_btn)
 
         self._port_perf_section.hide()
         layout.addWidget(self._port_perf_section)
         layout.addStretch()
 
-        return tab
+        scroll = QScrollArea()
+        scroll.setWidget(inner)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        return scroll
 
     # ------------------------------------------------------------------ public
 
+    def set_username(self, new_username: str):
+        self._username = new_username
+        avatar_path = user_manager.get_avatar_path(new_username)
+        self._profile_row.set_username(new_username, avatar_path)
+
+    def refresh_avatar(self):
+        avatar_path = user_manager.get_avatar_path(self._username)
+        self._profile_row.set_username(self._username, avatar_path)
+
     def set_theme(self, theme):
+        self._theme = theme
         self._tokens = get_tokens(theme)
         self._profile_row.set_theme(theme)
         self._apply_theme_styles(self._tokens)
@@ -364,6 +446,8 @@ class InfoPanel(QWidget):
         if symbol is None or df.empty:
             self._symbol_label.setText("—")
             self._name_label.setText("")
+            self._rename_btn.setEnabled(False)
+            self._rename_btn.hide()
             self._price_label.setText("—")
             self._change_label.setText("")
             self._predict_button.setEnabled(False)
@@ -391,6 +475,8 @@ class InfoPanel(QWidget):
         name = info.get("name", symbol) if info else symbol
         self._symbol_label.setText(symbol)
         self._name_label.setText(name)
+        self._rename_btn.setEnabled(True)
+        self._rename_btn.show()
 
         current = df["Close"].iloc[-1]
         prev = df["Close"].iloc[-2] if len(df) > 1 else current
@@ -501,6 +587,138 @@ class InfoPanel(QWidget):
             lbl.setStyleSheet(f"{base} color: {t['label_faint']};")
         for sep, margins in self._separators:
             sep.setStyleSheet(f"color: {t['separator']}; {margins}")
+        input_ss = f"""
+            QLineEdit {{
+                background: {t['base']};
+                color: {t['text']};
+                border: 1px solid {t['separator']};
+                border-radius: 6px;
+                padding: 2px 8px;
+                font-size: {t['font_small']};
+                selection-background-color: {t['highlight']};
+            }}
+            QLineEdit:focus {{
+                border-color: {t['highlight']};
+            }}
+            QLineEdit:disabled {{
+                color: {t['label_muted']};
+                border-color: {t['separator_strong']};
+            }}
+        """
+        for inp in self._port_inputs:
+            inp.setStyleSheet(input_ss)
+        self._port_save_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {t['highlight']};
+                color: #ffffff;
+                border: none;
+                border-radius: 6px;
+                font-size: {t['font_small']};
+                font-weight: bold;
+                padding: 5px 0px;
+            }}
+            QPushButton:hover {{ background: #3a92ea; }}
+            QPushButton:pressed {{ background: #1a6fc0; }}
+            QPushButton:disabled {{
+                background: {t['alternate_base']};
+                color: {t['label_muted']};
+            }}
+        """)
+        self._port_clear_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                color: {t['label_secondary']};
+                border: 1px solid {t['separator']};
+                border-radius: 6px;
+                font-size: {t['font_small']};
+                padding: 4px 0px;
+            }}
+            QPushButton:hover {{
+                color: {t['sell_color']};
+                border-color: {t['sell_color']};
+            }}
+            QPushButton:pressed {{ color: {t['sell_color']}; }}
+        """)
+        self._port_perf_section.setStyleSheet(
+            f"QWidget#perf_card {{ background: {t['alternate_base']}; border-radius: 6px; }}"
+        )
+        self._senate_add_key_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                color: {t['highlight']};
+                border: 1px solid {t['highlight']};
+                border-radius: 6px;
+                font-size: {t['font_small']};
+                padding: 5px 0px;
+            }}
+            QPushButton:hover {{
+                background: {t['highlight']};
+                color: #ffffff;
+            }}
+            QPushButton:pressed {{
+                background: #1a6fc0;
+                color: #ffffff;
+            }}
+        """)
+        self._tabs.setStyleSheet(f"""
+            QTabWidget::pane {{
+                border: none;
+                background: transparent;
+            }}
+            QTabBar {{
+                background: transparent;
+            }}
+            QTabBar::tab {{
+                background: transparent;
+                color: {t['label_secondary']};
+                border: 1px solid {t['separator']};
+                border-radius: 5px;
+                padding: 4px 10px;
+                margin-right: 4px;
+                font-size: {t['font_small']};
+                font-weight: bold;
+            }}
+            QTabBar::tab:selected {{
+                background: {t['highlight']};
+                color: #ffffff;
+                border-color: {t['highlight']};
+            }}
+            QTabBar::tab:hover:!selected {{
+                color: {t['text']};
+                border-color: {t['highlight']};
+            }}
+        """)
+        self._rename_btn.setStyleSheet(f"""
+            QPushButton#btn_rename {{
+                background: transparent;
+                color: {t['label_muted']};
+                border: none;
+                font-size: {t['font_small']};
+                border-radius: 4px;
+            }}
+            QPushButton#btn_rename:hover {{
+                color: {t['label_secondary']};
+                background: {t['alternate_base']};
+            }}
+            QPushButton#btn_rename:pressed {{
+                color: {t['highlight']};
+            }}
+        """)
+
+    def _on_rename(self):
+        if not self._cache or not self._current_symbol:
+            return
+        info = self._cache.get_stock_data(self._current_symbol)
+        current_name = info.get("name", self._current_symbol) if info else self._current_symbol
+        new_name, ok = QInputDialog.getText(
+            self, "Rename Stock", "Display name:", text=current_name
+        )
+        if not ok or not new_name.strip() or new_name.strip() == current_name:
+            return
+        new_name = new_name.strip()
+        self._cache.rename_stock(self._current_symbol, new_name)
+        self._name_label.setText(new_name)
+        self.stock_renamed.emit(self._current_symbol, new_name)
 
     def _refresh_portfolio_tab(self, portfolio):
         t = self._tokens
@@ -518,6 +736,11 @@ class InfoPanel(QWidget):
             gain = value - total_cost
             gain_pct = (gain / total_cost * 100) if total_cost > 0 else 0
             color = t["buy_color"] if gain >= 0 else t["sell_color"]
+
+            self._port_gain_label.setText(f"{gain_pct:+.1f}%")
+            self._port_gain_label.setStyleSheet(
+                f"font-size: {t['font_subhead']}; font-weight: bold; color: {color};"
+            )
 
             self._port_purchased.setText(portfolio.get('purchase_date', '—'))
             self._port_curr_val.setText(f"${self._current_price:.2f}")
@@ -548,6 +771,7 @@ class InfoPanel(QWidget):
             self._port_cost.setText(f"{self._current_price:.2f}" if self._current_price else "")
             self._port_date.setText(datetime.now().strftime('%Y-%m-%d'))
             self._port_target.clear()
+            self._port_gain_label.setText("")
             self._port_perf_section.hide()
 
     def _on_save_portfolio(self):
@@ -591,12 +815,28 @@ class InfoPanel(QWidget):
                 target = float(target_text)
                 if target > 0:
                     portfolio['sell_target'] = target
+                else:
+                    raise ValueError
             except ValueError:
-                pass
+                QMessageBox.warning(self, "Invalid Input", "Sell target must be a valid positive number.")
+                return
 
         if self._cache and self._current_symbol:
             self._cache.set_portfolio(self._current_symbol, portfolio)
             self._refresh_portfolio_tab(portfolio)
+            self._port_save_btn.setText("Saved ✓")
+            self._port_save_btn.setEnabled(False)
+            QTimer.singleShot(1500, lambda: (
+                self._port_save_btn.setText("Save Position"),
+                self._port_save_btn.setEnabled(True),
+            ))
+
+    def _on_add_finnhub_key(self):
+        from PyQt6.QtWidgets import QDialog
+        from .api_key_dialog import ApiKeyDialog
+        dlg = ApiKeyDialog("FINNHUB_API_KEY", self._username, theme=self._theme, parent=self)
+        if dlg.exec() == QDialog.DialogCode.Accepted and self._current_symbol:
+            self._fetch_senate_trades(self._current_symbol)
 
     def _on_clear_portfolio(self):
         from PyQt6.QtWidgets import QMessageBox
@@ -611,13 +851,21 @@ class InfoPanel(QWidget):
 
     def _fetch_senate_trades(self, symbol):
         from core.senate_worker import SenateWorker
+        from core import key_manager
+        finnhub_key = key_manager.get_key(self._username, "FINNHUB_API_KEY")
+        if not finnhub_key:
+            self._senate_status.setText("Finnhub API key not configured.")
+            self._senate_status.show()
+            self._senate_add_key_btn.show()
+            return
+        self._senate_add_key_btn.hide()
         self._senate_status.setText("Loading...")
         self._senate_status.show()
         for i in reversed(range(self._senate_inner_layout.count())):
             w = self._senate_inner_layout.itemAt(i).widget()
             if w:
                 w.deleteLater()
-        self._senate_worker = SenateWorker(symbol)
+        self._senate_worker = SenateWorker(symbol, finnhub_key=finnhub_key)
         self._senate_worker.finished.connect(self._update_senate_trades)
         self._senate_worker.start()
 
@@ -642,8 +890,9 @@ class InfoPanel(QWidget):
             arrow      = "▲" if is_buy else ("▼" if is_sell else "·")
             detail     = f"{date}" + (f"  ·  {amount}" if amount else "")
             entry = QLabel(
-                f'<span style="color:{color};">{arrow} {trade_type}</span>  {name}'
-                f'<br><span style="color:{t["label_faint"]}; font-size:{t["font_small"]};">{detail}</span>'
+                f'<span style="color:{color};">{arrow} {trade_type}</span>'
+                f'  <span style="color:{t["label_secondary"]};">{name}</span>'
+                f'<br><span style="color:{t["label_muted"]}; font-size:{t["font_small"]};">{detail}</span>'
             )
             entry.setTextFormat(Qt.TextFormat.RichText)
             entry.setWordWrap(True)

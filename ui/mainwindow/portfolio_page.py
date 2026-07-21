@@ -4,13 +4,14 @@ import traceback
 
 import pandas as pd
 from PyQt6.QtCore import QEasingCurve, QPropertyAnimation, QRectF, Qt, pyqtProperty, pyqtSignal
-from PyQt6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen
+from PyQt6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen, QPixmap
 from PyQt6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel,
     QPushButton, QVBoxLayout, QWidget,
 )
 
 from ..theme import get_tokens
+from core import user_manager
 
 _PIE_COLORS = [
     "#6495ED", "#32CD32", "#FF6347", "#FFD700",
@@ -20,24 +21,37 @@ _PIE_COLORS = [
 
 
 class _AvatarWidget(QWidget):
-    def __init__(self, username, size=68, parent=None):
+    def __init__(self, username, size=68, avatar_path=None, parent=None):
         super().__init__(parent)
         self._initial = username[0].upper() if username else "?"
         self.setFixedSize(size, size)
         self._size = size
+        self._pixmap = None
+        if avatar_path and os.path.exists(avatar_path):
+            self._pixmap = QPixmap(avatar_path).scaled(
+                size, size,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation,
+            )
 
     def paintEvent(self, _event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setBrush(QColor("#2a82da"))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.drawEllipse(0, 0, self._size, self._size)
-        font = QFont()
-        font.setPixelSize(int(self._size * 0.40))
-        font.setBold(True)
-        p.setFont(font)
-        p.setPen(QColor("#ffffff"))
-        p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self._initial)
+        if self._pixmap and not self._pixmap.isNull():
+            clip = QPainterPath()
+            clip.addEllipse(0.0, 0.0, float(self._size), float(self._size))
+            p.setClipPath(clip)
+            p.drawPixmap(0, 0, self._size, self._size, self._pixmap)
+        else:
+            p.setBrush(QColor("#2a82da"))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.drawEllipse(0, 0, self._size, self._size)
+            font = QFont()
+            font.setPixelSize(int(self._size * 0.40))
+            font.setBold(True)
+            p.setFont(font)
+            p.setPen(QColor("#ffffff"))
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self._initial)
 
 
 def _make_segment_path(cx, cy, outer_r, inner_r, start_angle, span_angle):
@@ -265,6 +279,11 @@ class _LegendRow(QWidget):
         sym = QLabel(pos["symbol"])
         sym.setStyleSheet(f"font-size: {tokens['font_body']}; font-weight: bold;")
 
+        shares = pos["shares"]
+        shares_text = f"{shares:,.0f}" if shares == int(shares) else f"{shares:,.4g}"
+        shares_lbl = QLabel(f"{shares_text} sh")
+        shares_lbl.setStyleSheet(f"font-size: {tokens['font_body']}; color: {tokens['label_muted']};")
+
         gain_color_hex = "#00cc66" if pos["gain_pct"] >= 0 else "#ff4444"
         sign = "+" if pos["gain_pct"] >= 0 else ""
         pct_lbl = QLabel(f"{sign}{pos['gain_pct']:.1f}%")
@@ -279,6 +298,7 @@ class _LegendRow(QWidget):
 
         layout.addWidget(dot)
         layout.addWidget(sym)
+        layout.addWidget(shares_lbl)
         layout.addStretch()
         layout.addWidget(pct_lbl)
         layout.addWidget(val_lbl)
@@ -373,7 +393,7 @@ class UserPage(QWidget):
         header_row = QHBoxLayout()
         header_row.setSpacing(16)
         header_row.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-        header_row.addWidget(_AvatarWidget(username))
+        header_row.addWidget(_AvatarWidget(username, avatar_path=user_manager.get_avatar_path(username)))
 
         name_col = QVBoxLayout()
         name_col.setSpacing(3)
@@ -459,7 +479,12 @@ def _load_positions(cache, csv_path):
             cost_per_share = float(portfolio.get("cost_per_share", 0))
             total_cost = shares * cost_per_share
             current_value = shares * current_price
-            daily_pct = df["Close"].pct_change().dropna()
+            purchase_date = portfolio.get("purchase_date")
+            if purchase_date:
+                df_since = df[df.index >= pd.Timestamp(purchase_date)]
+                daily_pct = df_since["Close"].pct_change().dropna()
+            else:
+                daily_pct = df["Close"].pct_change().dropna()
             avg_daily_change = float(daily_pct.mean() * 100) if len(daily_pct) > 0 else 0.0
             positions.append({
                 "symbol": symbol,

@@ -1,4 +1,3 @@
-import os
 import traceback
 
 import requests
@@ -10,13 +9,14 @@ _CODE_MAP = {"P": "Purchase", "S": "Sale", "A": "Award", "D": "Disposition", "G"
 class SenateWorker(QThread):
     finished = pyqtSignal(list)
 
-    def __init__(self, symbol):
+    def __init__(self, symbol, finnhub_key=None):
         super().__init__()
         self.symbol = symbol
+        self._finnhub_key = finnhub_key
 
     def run(self):
         try:
-            api_key = os.getenv("FINNHUB_API_KEY")
+            api_key = self._finnhub_key
             if not api_key:
                 self.finished.emit([])
                 return

@@ -1,5 +1,4 @@
 import json
-import os
 import traceback
 
 import requests
@@ -12,19 +11,21 @@ class AIAnalysisWorker(QThread):
     error = pyqtSignal(str)
     status = pyqtSignal(str)
 
-    def __init__(self, symbol, name, df):
+    def __init__(self, symbol, name, df, anthropic_key=None, finnhub_key=None):
         super().__init__()
         self.symbol = symbol
         self.name = name
         self.df = df.copy()
+        self._anthropic_key = anthropic_key
+        self._finnhub_key = finnhub_key
 
     def run(self):
         try:
-            api_key = os.getenv("ANTHROPIC_API_KEY")
+            api_key = self._anthropic_key
             if not api_key:
                 self.error.emit(
-                    "ANTHROPIC_API_KEY is not set.\n\n"
-                    "Add it to your .env file:\n  ANTHROPIC_API_KEY=sk-ant-..."
+                    "Anthropic API key is not set.\n\n"
+                    "Add it via Settings → API Keys or click the prompt when running AI analysis."
                 )
                 return
 
@@ -47,7 +48,7 @@ class AIAnalysisWorker(QThread):
 
     def _get_insider_trades(self):
         try:
-            api_key = os.getenv("FINNHUB_API_KEY")
+            api_key = self._finnhub_key
             if not api_key:
                 return None
             url = f"https://finnhub.io/api/v1/stock/insider-transactions?symbol={self.symbol}&token={api_key}"

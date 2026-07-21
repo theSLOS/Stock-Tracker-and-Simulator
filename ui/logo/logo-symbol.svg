@@ -1,0 +1,28 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Stock App symbol">
+  <defs>
+    <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#17283D"/>
+      <stop offset="1" stop-color="#0C1320"/>
+    </linearGradient>
+    <linearGradient id="mint" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3DE8A8"/>
+      <stop offset="1" stop-color="#1FB98C"/>
+    </linearGradient>
+  </defs>
+
+  <!-- badge -->
+  <rect x="0" y="0" width="512" height="512" rx="115" fill="url(#ink)"/>
+
+  <!-- candle 1 -->
+  <rect x="163.5" y="222" width="9" height="138" rx="4.5" fill="#1C9B95"/>
+  <rect x="143" y="250" width="50" height="82" rx="14" fill="#1C9B95"/>
+
+  <!-- candle 2 -->
+  <rect x="251.5" y="180" width="9" height="138" rx="4.5" fill="#21C2B5"/>
+  <rect x="231" y="205" width="50" height="82" rx="14" fill="#21C2B5"/>
+
+  <!-- candle 3 (the high) -->
+  <rect x="339.5" y="138" width="9" height="138" rx="4.5" fill="url(#mint)"/>
+  <rect x="319" y="160" width="50" height="82" rx="14" fill="url(#mint)"/>
+  <circle cx="344" cy="138" r="11" fill="#3DE8A8"/>
+</svg>

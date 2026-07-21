@@ -1,0 +1,32 @@
+<svg viewBox="0 0 940 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Stock App">
+  <defs>
+    <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1B2E45"/>
+      <stop offset="1" stop-color="#11192A"/>
+    </linearGradient>
+    <linearGradient id="mint" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3DE8A8"/>
+      <stop offset="1" stop-color="#1FB98C"/>
+    </linearGradient>
+    <style>
+      .word { font-family:'Inter','Segoe UI',system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif; }
+    </style>
+  </defs>
+
+  <!-- mark -->
+  <g transform="translate(40,40) scale(0.42969)">
+    <rect x="0" y="0" width="512" height="512" rx="115" fill="url(#ink)" stroke="#2C415E" stroke-width="4"/>
+    <rect x="163.5" y="222" width="9" height="138" rx="4.5" fill="#1C9B95"/>
+    <rect x="143" y="250" width="50" height="82" rx="14" fill="#1C9B95"/>
+    <rect x="251.5" y="180" width="9" height="138" rx="4.5" fill="#21C2B5"/>
+    <rect x="231" y="205" width="50" height="82" rx="14" fill="#21C2B5"/>
+    <rect x="339.5" y="138" width="9" height="138" rx="4.5" fill="url(#mint)"/>
+    <rect x="319" y="160" width="50" height="82" rx="14" fill="url(#mint)"/>
+    <circle cx="344" cy="138" r="11" fill="#3DE8A8"/>
+  </g>
+
+  <!-- wordmark -->
+  <text class="word" x="300" y="192" font-size="116">
+    <tspan font-weight="800" fill="#F4F7FB" letter-spacing="-2">Stock</tspan><tspan dx="22" font-weight="500" fill="#8A9BB0" letter-spacing="-1">App</tspan>
+  </text>
+</svg>

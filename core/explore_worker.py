@@ -113,10 +113,13 @@ class ExploreWorker(QThread):
 
             import yfinance as yf
 
-            self.progress.emit("Fetching S&P 500 ticker list...")
+            self.progress.emit("Fetching S&P 500 ticker list…")
             tickers, ticker_names = _fetch_sp500_tickers()
 
-            self.progress.emit(f"Downloading data for {len(tickers)} stocks...")
+            if len(tickers) == len(EXPLORE_TICKERS):
+                self.progress.emit(f"Using curated list ({len(tickers)} tickers) — fetching data…")
+            else:
+                self.progress.emit(f"Downloading data for {len(tickers)} S&P 500 stocks…")
             data = yf.download(tickers, period="5d", progress=False, auto_adjust=True)
 
             results = []

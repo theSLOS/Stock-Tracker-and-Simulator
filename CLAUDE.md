@@ -22,7 +22,7 @@ python main.py --user admin --password password
 python main.py -u admin -p password
 ```
 
-Requires `ANTHROPIC_API_KEY` in a `.env` file for the AI analysis feature. Requires `FINNHUB_API_KEY` for the insider trades panel. All other features work without either key.
+API keys are stored **per user** in `Users/<username>/api_keys.json` (gitignored). The app prompts the user to enter a key the first time they trigger a feature that needs one; keys can also be managed via Settings → API Keys. The global `.env` file is still read as a fallback via `core/key_manager.get_key()` for any user who hasn't set their own key yet. All features except AI analysis and insider trades work without any keys.
 
 ---
 
@@ -32,35 +32,44 @@ Requires `ANTHROPIC_API_KEY` in a `.env` file for the AI analysis feature. Requi
 main.py                        # Entry point only — wires login → main window
 pyrightconfig.json             # Tells Pylance to treat root as source root (fixes IDE import errors)
 requirements.txt
-.env                           # ANTHROPIC_API_KEY + FINNHUB_API_KEY (gitignored)
+.env                           # Optional legacy fallback for ANTHROPIC_API_KEY + FINNHUB_API_KEY (gitignored)
 
 ui/                            # All PyQt6 UI components
+    logo/                      # SVG brand assets (committed)
+        logo-symbol.svg        # Square 512×512 badge icon — window/taskbar icon + in-dialog branding
+        logo-full.svg          # Horizontal 940×300 wordmark, light-theme colours
+        logo-full-dark.svg     # Horizontal 940×300 wordmark, dark-theme colours
     mainwindow/                # Main app window package (see ui/mainwindow/CLAUDE.md)
         main_window.py         # MainWindow (QMainWindow) + StockFetchWorker + apply_dark/light_theme()
         info_panel.py          # InfoPanel (QWidget) — left panel (profile row, stock header, 3 tabs); theme-aware via set_theme()
-        chart_panel.py         # ChartPanel (QWidget) — right panel
-        stock_chart.py         # StockChart (QWidget) — self-contained chart
-        explore_panel.py       # ExplorePanel (QWidget) — market explorer tab; theme-aware via set_theme()
+        chart_panel.py         # ChartPanel (QWidget) — right panel; top combo row (+ Add Stock, dropdown, Delete); single bottom toolbar (date range buttons 1Y/6M/3M/1M/All on left, SMA/EMA indicator toggles on right); apply_theme() rebuilds stylesheet from get_tokens()
+        stock_chart.py         # StockChart (QWidget) — self-contained chart; calls autoRange() after every _redraw() so date-range changes snap the viewport
+        explore_panel.py       # ExplorePanel (QWidget) — market explorer tab; market overview bar (gainers/losers/avg move); real-time search filter (symbol or name); rank # column; ▲/▼ change arrows; double-click row to add; load timestamp in status; theme-aware via set_theme()
         portfolio_page.py      # UserPage (QWidget) — full-window portfolio page; receives theme= at construction
+        add_stock_dialog.py    # AddStockDialog (QDialog) — card-style add dialog; reads explore cache for market highlight chips; returns symbol via get_symbol(); branding icon rendered from logo-symbol.svg
         ai_analysis_dialog.py  # AIAnalysisDialog (QDialog); receives theme= at construction
-        settings_dialog.py     # UserSettingsDialog (QDialog)
-    login_page.py              # LoginDialog (QDialog)
-    register_page.py           # RegisterDialog (QDialog)
+        api_key_dialog.py      # ApiKeyDialog (QDialog) — card-style dialog for entering/updating a single API key; used inline and from settings
+        settings_dialog.py     # UserSettingsDialog (QDialog) — card + sidebar nav: Profile (avatar upload, username rename), Appearance (pill theme toggle), Security (inline password change), API Keys (per-key status + Update/Delete)
+    login_page.py              # LoginDialog (QDialog) — fixed 440×540 card-on-dark layout; styled with get_tokens("dark"); always shown with dark theme regardless of user preference; branding icon rendered from logo-symbol.svg
+    register_page.py           # RegisterDialog (QDialog) — matching 440×620 card design to login_page; opened from login footer; branding icon rendered from logo-symbol.svg
     theme.py                   # Centralised token system: THEMES dict + _FONT_SCALE + _SIGNAL_COLORS; get_tokens(theme) → merged dict used by every UI component; apply_palette() sets Qt QPalette
 
 core/                          # Business logic, data, background workers (see core/CLAUDE.md)
     stock_handler.py           # yfinance download, add_new_stock(), calculate_SMA/EMA()
     caching.py                 # CacheManager — per-user JSON cache
-    user_manager.py            # load_users(), create_user(), get_user_profile()
+    user_manager.py            # load_users(), create_user(), get_user_profile(), save_user_profile(), hash_password(), verify_password(), rename_user(), get_avatar_path()
+    key_manager.py             # get_key(username, name), set_key(username, name, value), delete_key() — reads/writes Users/<username>/api_keys.json; falls back to os.getenv() if no per-user key is set
     stock_model.py             # StockPackage dataclass (symbol, name, dfpath, lastUpdate, df)
     prediction_worker.py       # PredictionWorker (QThread) — Prophet
-    ai_analysis_worker.py      # AIAnalysisWorker (QThread) — Finnhub + Claude API
-    senate_worker.py           # SenateWorker (QThread) — insider trades from Finnhub
+    ai_analysis_worker.py      # AIAnalysisWorker (QThread, anthropic_key=, finnhub_key=) — Finnhub + Claude API
+    senate_worker.py           # SenateWorker (QThread, finnhub_key=) — insider trades from Finnhub
     explore_worker.py          # ExploreWorker (QThread) — S&P 500 fetch + daily cache + batch yfinance download for Explore tab
 
 Users/
     <username>/
-        profile.json           # {"username", "password", "email", "phone", "preferences": {"theme", "default_stock"}}
+        profile.json           # {"username", "password" (pbkdf2sha256 hash), "email", "phone", "preferences": {"theme", "default_stock"}} — COMMITTED to git
+        api_keys.json          # {"ANTHROPIC_API_KEY": "...", "FINNHUB_API_KEY": "..."} — gitignored, never committed
+        avatar.png             # Profile picture (gitignored) — 256×256 PNG; absent until user uploads one
         cache                  # JSON file (gitignored) — maps symbol → {name, dfpath, lastUpdate, ai_analysis?, portfolio?}
         csvFiles/              # Downloaded CSVs (gitignored) — one per stock, e.g. AAPL.csv
 ```
@@ -79,6 +88,11 @@ Users/
 7. AI analysis runs in `AIAnalysisWorker` (QThread) — fetches insider trades from Finnhub then calls Claude API
 8. Insider trades panel is populated by `SenateWorker` (QThread), owned by `InfoPanel`, on every stock load
 9. Explore tab: `ExploreWorker` (QThread) starts in the background at login via `start_background_load()`. It checks `Users/explore_cache.json` first — if today's data is already cached it emits immediately; otherwise it fetches the S&P 500 ticker list from Wikipedia (~503 tickers, falls back to a hardcoded 58-ticker curated list on failure), batch-downloads 5 days of data via `yf.download()`, saves the results to the daily cache, then emits. Results are sorted into Top Gainers / Top Losers / Most Active / Biggest Movers tables. The manual Refresh button always bypasses the cache and re-downloads. "+ Add" button emits `add_to_portfolio` → `MainWindow.add_stock_from_explore()` → `StockFetchWorker` (same path as manual add)
+10. "+ Add Stock" button opens `AddStockDialog` — a card-style dialog that reads `Users/explore_cache.json` directly at construction time and renders Top Gainers, Top Losers, and Most Active as clickable chip buttons. Clicking a chip fills the symbol field. On accept, `MainWindow.add_new_stock_dialog()` launches `StockFetchWorker` with the entered symbol.
+11. Stock rename: `InfoPanel` exposes a `stock_renamed = pyqtSignal(str, str)` signal. A small `✎` pencil button appears beside the stock name when a stock is loaded; clicking it opens a `QInputDialog` pre-filled with the current name. On confirm, `CacheManager.rename_stock()` updates the cache and the signal is emitted → `MainWindow._on_stock_renamed()` refreshes the combo dropdown.
+12. Username rename: `UserSettingsDialog` emits `username_changed(str)` → `MainWindow._on_username_changed()` updates `self.username`, window title, `cache.path`, `csv_path`, and `info_panel.set_username()`. The rename itself calls `user_manager.rename_user(old, new)` which does a single `os.rename` on the `Users/<old>/` folder (moving all user data atomically) then updates `profile.json`. Validation: 3–20 chars, `[a-zA-Z0-9_]` only, uniqueness checked by testing if the target directory already exists.
+13. Avatar: picked via `QFileDialog`, scaled + center-cropped to 256 × 256 PNG, saved to `Users/<username>/avatar.png` (gitignored). `UserSettingsDialog` emits `avatar_changed` → `MainWindow._on_avatar_changed()` → `info_panel.refresh_avatar()`. Both `_MiniAvatar` (28 px, `info_panel.py`) and `_AvatarWidget` (68 px, `portfolio_page.py`) clip the image to a circle via `QPainterPath.addEllipse` + `setClipPath`; fall back to initials when no avatar file exists.
+14. API keys: `core/key_manager.py` is the single source of truth for per-user API key access. `get_key(username, name)` checks `Users/<username>/api_keys.json` first, then falls back to `os.getenv()` for `.env` compatibility. Workers (`AIAnalysisWorker`, `SenateWorker`) receive keys as constructor params — they never call `os.getenv()` themselves. `MainWindow.run_ai_analysis()` loads the Anthropic key before starting the worker and opens `ApiKeyDialog` if it is absent. `InfoPanel._fetch_senate_trades()` checks for the Finnhub key and shows a "Set Finnhub API Key" inline button rather than silently doing nothing. `UserSettingsDialog` has an API Keys section for viewing (placeholder hints whether a key is set) and updating both keys.
 
 ### Key design decisions
 - **Cache stores only filenames** (`AAPL.csv`), not absolute paths. Full path reconstructed as `os.path.join(csv_path, filename)` at runtime — keeps the project portable.
@@ -87,7 +101,9 @@ Users/
 - **`QTabWidget` top-level navigation** — Tab 0: "Portfolio" (contains a `QStackedWidget` for stock view ↔ portfolio page); Tab 1: "Explore" (`ExplorePanel`). `ExploreWorker` is started at login via `start_background_load()` so data is usually ready before the user opens the tab. `refresh_if_empty()` on tab switch acts as a fallback if the background load hasn't fired yet.
 - **`QStackedWidget` within Portfolio tab** — index 0: stock view (InfoPanel + ChartPanel). Index 1: `UserPage`, recreated fresh on every navigation so data is always current.
 - **No menu bar** — settings accessed via the User Page (profile row in InfoPanel).
-- **Centralised theme tokens** — `theme.py` is the single source of truth for all colours and font sizes. `get_tokens(theme)` merges `THEMES[theme]` + `_FONT_SCALE` + `_SIGNAL_COLORS` into one flat dict. Every UI component imports `get_tokens` and uses only token keys — no hardcoded hex values or pixel sizes. Persistent widgets (`InfoPanel`, `ExplorePanel`) expose `set_theme(theme)` and call `_apply_theme_styles(tokens)` on theme switch; one-shot widgets (`UserPage`, `AIAnalysisDialog`) receive `theme=` at construction. `MainWindow.open_settings()` is the single call site that triggers `apply_palette` + `set_theme` on all persistent panels.
+- **Per-user API keys** — stored in `Users/<username>/api_keys.json` (gitignored), separate from `profile.json` (which is committed). `core/key_manager.py` handles all reads/writes and falls back to `os.getenv()` so the legacy `.env` file keeps working. Keys are never hardcoded in workers; they are passed as constructor params so tests or future callers can supply them directly.
+- **Logo rendering** — `ui/logo/logo-symbol.svg` is the single brand asset used for the window/taskbar icon and inline dialog branding. Rendered via `QSvgRenderer` → `QPixmap` (transparent background) → `QLabel` or `QIcon` — never `QSvgWidget`, which has background-transparency issues on dark cards. On Windows, `main.py` calls `ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID` before `QApplication` so the taskbar button shows the custom icon instead of Python's default. Icon set on `QApplication` (not individual windows) so it propagates automatically to all dialogs.
+- **Centralised theme tokens** — `theme.py` is the single source of truth for all colours and font sizes. `get_tokens(theme)` merges `THEMES[theme]` + `_FONT_SCALE` + `_SIGNAL_COLORS` into one flat dict. Every UI component imports `get_tokens` and uses only token keys — **no hardcoded hex values or pixel sizes anywhere in UI files**. Pre-login dialogs (`LoginDialog`, `RegisterDialog`) call `get_tokens("dark")` directly since the user hasn't chosen a theme yet. Persistent widgets (`InfoPanel`, `ExplorePanel`, `ChartPanel`) expose `set_theme(theme)` / `apply_theme(theme)` and rebuild their stylesheets on theme switch; one-shot widgets (`UserPage`, `AIAnalysisDialog`) receive `theme=` at construction. `MainWindow.open_settings()` is the single call site that triggers `apply_palette` + `set_theme` on all persistent panels.
 
 ---
 

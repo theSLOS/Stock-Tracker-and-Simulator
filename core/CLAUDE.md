@@ -30,6 +30,8 @@
 
 `dfpath` is **filename only** — always join with `csv_path` to get the full path. `ai_analysis` and `portfolio` are optional keys; absent until the user runs that feature. `sell_target` inside `portfolio` is also optional.
 
+**`CacheManager` key methods:** `set_stock_data(StockPackage)`, `get_stock_data(symbol)`, `rename_stock(symbol, new_name)` (updates `name` field + saves), `delete_stock(symbol, csv_path)`, `set_portfolio` / `get_portfolio` / `clear_portfolio`, `set_ai_analysis` / `get_ai_analysis` / `is_ai_analysis_fresh`.
+
 ---
 
 ## User profile format (`Users/<username>/profile.json`)
@@ -37,7 +39,7 @@
 ```json
 {
     "username": "user3",
-    "password": "password",
+    "password": "pbkdf2sha256:260000:<salt>:<hex-digest>",
     "email": "user@example.com",
     "phone": "555-1234",
     "preferences": {
@@ -48,6 +50,8 @@
 ```
 
 `email` and `phone` are optional. Profile files **are** committed to git. Cache files and CSVs are gitignored.
+
+Passwords are hashed with PBKDF2-HMAC-SHA256 (260 000 iterations) via `hash_password()` in `user_manager.py`. Use `verify_password(stored, provided)` for all auth checks — never compare the stored string directly. The legacy plain-text path (`stored == provided`) is still handled as a fallback for any old profiles that pre-date the hash update.
 
 ---
 

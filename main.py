@@ -3,28 +3,48 @@ import sys
 import argparse
 
 from PyQt6.QtWidgets import QApplication, QDialog
+from PyQt6.QtGui import QIcon, QPixmap, QPainter
+from PyQt6.QtSvg import QSvgRenderer
+from PyQt6.QtCore import Qt
 
 from ui.login_page import LoginDialog
 from ui.mainwindow.main_window import MainWindow, apply_dark_theme, apply_light_theme
 from core import caching, user_manager
-import os; print(os.getenv("ANTHROPIC_API_KEY"))
+
+
+def _make_app_icon() -> QIcon:
+    svg_path = os.path.join(os.path.dirname(__file__), 'ui', 'logo', 'logo-symbol.svg')
+    renderer = QSvgRenderer(svg_path)
+    icon = QIcon()
+    for size in (16, 24, 32, 48, 64, 128, 256):
+        px = QPixmap(size, size)
+        px.fill(Qt.GlobalColor.transparent)
+        p = QPainter(px)
+        renderer.render(p)
+        p.end()
+        icon.addPixmap(px)
+    return icon
 
 def _auto_login(username, password):
     users = user_manager.load_users()
     profile = users.get(username)
-    if profile and profile.get("password") == password:
+    if profile and user_manager.verify_password(profile.get("password", ""), password):
         return profile
     return None
 
 
 def main():
-    
+    if sys.platform == 'win32':
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('StockApp.StockViewer.1.0')
+
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--user", "-u", default=None)
     parser.add_argument("--password", "-p", default=None)
     args, remaining = parser.parse_known_args()
 
     app = QApplication([sys.argv[0]] + remaining)
+    app.setWindowIcon(_make_app_icon())
     apply_dark_theme(app)
 
     username = None

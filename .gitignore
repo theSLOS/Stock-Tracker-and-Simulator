@@ -7,7 +7,7 @@ __pycache__/
 #local files
 *.csv
 cache/
-Users/*/cache
+Users/
 .env
 
 # C extensions
@@ -37,7 +37,7 @@ MANIFEST
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
-*.spec
+# *.spec is intentionally NOT ignored — StockApp.spec is committed to the repo
 
 # Installer logs
 pip-log.txt
